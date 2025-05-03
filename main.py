@@ -80,17 +80,21 @@ async def sell_current(coinn, price, amount):
     return True
 
 
-async def get_current_balance(uno):
-    # 사용자별 지갑 확인
-    return 0
-
-
-
+async def get_current_balance(uno, db: AsyncSession = Depends(get_db)):
+    try:
+        query = text(f"SELECT * FROM trWallet where userNo = :uno and attrib not like :attxx")
+        mycoins = await db.execute(query,{"uno":uno,"attxx":"%XXX%"})
+        mycoins = mycoins.fetchall()
+    except Exception as e:
+        print("Error!!",e)
+    finally:
+        return mycoins
 
 
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(async_daemon())
+    # asyncio.create_task(async_daemon())
+    return True
 
 @app.get("/")
 async def root():
@@ -105,3 +109,33 @@ async def get_price():
         "KRW-SUI": price,
         "checked_at": checked_at
     }
+
+
+@app.get("/balanceinit/{uno}/{iniamt}")
+async def init_balance(request: Request, uno: int, iniamt: float, db: AsyncSession = Depends(get_db)):
+    try:
+        query0 = text(f"SELECT * FROM trWallet WHERE userNo = :uno and attrib not like :attxx")
+        selres = await db.execute(query0, {"uno": uno, "attxx": "%XXX%"})
+        if selres.rowcount > 0:
+            query = text(f"UPDATE trWallet set attrib = :attset WHERE userNo = :uno")
+            await db.execute(query, {"attset": "XXXUPXXXUP", "uno": uno})
+        query2 = text(f"INSERT INTO trWallet (userNo,changeType, currency,unitPrice,inAmt,remainAmt) "
+                     "values (:uno, 'INITAMT','KRW', '1.0', :inamt, :inamt1)")
+        await db.execute(query2, {"uno": uno, "inamt": iniamt, "inamt1": iniamt})
+        await db.commit()
+        mycoins = await get_current_balance(uno, db)
+    except Exception as e :
+        print("Init Error !!",e)
+    finally:
+        return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "mycoins": mycoins})
+
+
+@app.get("/balance/{uno}")
+async def my_balance(request: Request, uno: int, db: AsyncSession = Depends(get_db)):
+    try:
+        mycoins = await get_current_balance(uno, db)
+    except Exception as e :
+        print("Init Error !!",e)
+    finally:
+        return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "mycoins": mycoins})
+
