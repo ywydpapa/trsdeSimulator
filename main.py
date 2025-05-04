@@ -91,13 +91,21 @@ async def sell_current(coinn, price, amount):
 
 async def get_current_balance(uno, db: AsyncSession = Depends(get_db)):
     try:
-        query = text(f"SELECT * FROM trWallet where userNo = :uno and attrib not like :attxx")
-        mycoins = await db.execute(query,{"uno":uno,"attxx":"%XXX%"})
-        mycoins = mycoins.fetchall()
+        query = text("SELECT * FROM trWallet where userNo = :uno and attrib not like :attxx order by currency ")
+        result = await db.execute(query, {"uno": uno, "attxx": "%XXX%"})
+        mycoins = result.fetchall()
+        coinprice = {}
+        for coin in mycoins:
+            if coin[5] != "KRW":
+                cprice = await get_current_price(coin[5])
+            else:
+                cprice = 1.0
+            coinprice[coin[5]] = cprice
     except Exception as e:
-        print("Error!!",e)
+        print("Error!!", e)
     finally:
-        return mycoins
+        return mycoins, coinprice
+
 
 
 def require_login(request: Request):
@@ -168,25 +176,31 @@ async def logout(request: Request):
 
 @app.get("/balanceinit/{uno}/{iniamt}")
 async def init_balance(request: Request, uno: int, iniamt: float, db: AsyncSession = Depends(get_db)):
+    mycoins = None
     try:
         query0 = text(f"SELECT * FROM trWallet WHERE userNo = :uno and attrib not like :attxx")
         selres = await db.execute(query0, {"uno": uno, "attxx": "%XXX%"})
         if selres.rowcount > 0:
             query = text(f"UPDATE trWallet set attrib = :attset WHERE userNo = :uno")
             await db.execute(query, {"attset": "XXXUPXXXUP", "uno": uno})
-        query2 = text(f"INSERT INTO trWallet (userNo,changeType, currency,unitPrice,inAmt,remainAmt) "
-                     "values (:uno, 'INITAMT','KRW', '1.0', :inamt, :inamt1)")
-        await db.execute(query2, {"uno": uno, "inamt": iniamt, "inamt1": iniamt})
+        seckey = datetime.now().strftime("%Y%m%d%H%M%S")
+        query2 = text(f"INSERT INTO trWallet (userNo,changeType,currency,unitPrice,inAmt, remainAmt, linkNo) "
+                     "values (:uno, 'INITAMT','KRW', '1.0', :inamt, :inamt1, :seckey))")
+        await db.execute(query2, {"uno": uno, "inamt": iniamt, "inamt1": iniamt, "seckey": seckey})
+        query3 = text(f"UPDATE trUser set setupKey = :seckey WHERE userNo = :uno and attrib not like :attxx")
+        await db.execute(query3, {"seckey": seckey, "uno": uno, "attxx": '%XXX%'})
         await db.commit()
         mycoins = await get_current_balance(uno, db)
     except Exception as e :
         print("Init Error !!",e)
-    finally:
-        return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "mycoins": mycoins})
+        mycoins = ([],{})
+    usern = request.session.get("user_Name")
+    return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno,"user_Name": usern , "mycoins": mycoins[0],"coinprice": mycoins[1]})
 
 
 @app.get("/balance/{uno}")
 async def my_balance(request: Request,uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+    mycoins = None
     if uno != user_session:
         return RedirectResponse(url="/", status_code=303)
     try:
@@ -195,4 +209,4 @@ async def my_balance(request: Request,uno: int, user_session: int = Depends(requ
         print("Init Error !!", e)
         mycoins = None
     usern = request.session.get("user_Name")
-    return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "user_Name": usern , "mycoins": mycoins})
+    return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "user_Name": usern , "mycoins": mycoins[0], "coinprice": mycoins[1]})

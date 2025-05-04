@@ -41,13 +41,16 @@
                                 {% for coin in mycoins %}
                                 <tr>
                                     <td class="coins" style="text-align: center"> {{ coin[5] }} </td>
-                                    <td class="vola" style="text-align: right"> {{ coin[9] | currency }} </td>
-                                    <td class="volb" style="text-align: right">  </td>
-                                    <td class="aprice" style="text-align: right"> {{ coin[6] | currency }} </td>
-                                    <td class="cprice" style="text-align: right"> {{ coin[6] | currency }} </td>
+                                    <td class="vola" style="text-align: right"> {{ coin[9] }} </td>
+                                    <td class="volb" style="text-align: right">0</td>
+                                    <td class="aprice" style="text-align: right"> {{ coin[6] }} </td>
+                                    <td class="cprice" style="text-align: right">
+                                        {{ coinprice[coin[5]] }}
+                                    </td>
                                     <td class="cvalue" style="text-align: right">  </td>
                                     <td class="balanceprice"style="text-align: right">  </td>
                                     <td class="balancerate" style="text-align: right">  </td>
+                                     {% if coin[5]!="KRW" %}
                                     <td style="display: flex; justify-content: space-between;">
                                         <button class="btn form-control btn-primary" style="width: 48%;"
                                                 onclick="sellcoin( {{ userNo }},{{ coin[5] }})"> 매도
@@ -56,6 +59,32 @@
                                                 onclick="buycoin( {{ userNo }},{{ coin[5] }})"> 매수
                                         </button>
                                     </td>
+                                    {% elif coin[5] == "KRW" %}
+                                    <td style="text-align: center">
+                                        <div class="row" style="justify-content: space-evenly; margin-left: -.75rem; margin-right:-.75rem">
+                                            <div class="d-inline-block">매도 금액 비율
+                                            </div>
+                                            <div class="d-inline-block">
+                                                <select class="form-control" name="sellrate" id="sellrate">
+                                                    <option value=1>100%</option>
+                                                    <option value=2>50%</option>
+                                                    <option value=4>25%</option>
+                                                    <option value=10>10%</option>
+                                                    <option value=20>5%</option>
+                                                    <option value=100>1%</option>
+                                                    <option value=0>10,000원</option>
+                                                </select></div>
+                                            <div class="d-inline-block">매수 금액
+                                            </div>
+                                            <div class="d-inline-block">
+                                                <input id="buyamt" name="buyamt" class="form-control" type="text"
+                                                   value="10000" placeholder="10,000" max="2000000" min="10000"
+                                                   step="10000" style="text-align: right"
+                                                   oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');"/>
+                                                </div>
+                                        </div>
+                                    </td>
+                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                                 <tr>
@@ -158,8 +187,13 @@
             nprice = parseInt(Math.round((aval + bval) * cval)); //구매 가치
             estpr = parseInt(Math.round((aval + bval) * dval)); //평가 가치
             estrate = 100 - ((nprice - estpr) / nprice * 100);
+            estrate = estrate.toFixed(2);
             wonsum = wonsum + nprice; //원하 가치
             estsum = estsum + estpr; //평가 가치
+            $Aarr[i].innerText = numberWithCommas(aval);
+            $Barr[i].innerText = numberWithCommas(bval);
+            $Carr[i].innerText = numberWithCommas(cval);
+            $Darr[i].innerText = numberWithCommas(dval);
             $Earr[i].innerText = numberWithCommas(nprice);
             $Farr[i].innerText = numberWithCommas(estpr);
             $Garr[i].innerText = estrate;
