@@ -1,6 +1,6 @@
 import asyncio
 import aiohttp
-from fastapi import FastAPI, Depends, Request, Form, Response, HTTPException, File, UploadFile
+from fastapi import FastAPI, Depends, Request, Form, Response, HTTPException, status, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +39,15 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 latest_price = None
 latest_time = None
 price_lock = asyncio.Lock()
+
+
+def format_currency(value):
+    if isinstance(value, (int, float)):
+        return "{:,.0f}".format(value)
+    return value
+
+
+templates.env.filters['currency'] = format_currency
 
 
 # 데이터베이스 세션 생성
@@ -91,14 +100,34 @@ async def get_current_balance(uno, db: AsyncSession = Depends(get_db)):
         return mycoins
 
 
+def require_login(request: Request):
+    user_no = request.session.get("user_No")
+    if not user_no:
+        raise HTTPException(
+            status_code=status.HTTP_303_SEE_OTHER,
+            headers={"Location": "/"},
+            detail="로그인이 필요합니다."
+        )
+    return user_no  # 필요하다면 user_Name, user_Role도 반환 가능
+
+
+@app.get("/private")
+async def private_page(request: Request, user_session: int = Depends(require_login)):
+    return {"msg": f"로그인된 사용자 번호: {user_session}"}
+
+
 @app.on_event("startup")
 async def startup_event():
     # asyncio.create_task(async_daemon())
     return True
 
 @app.get("/")
-async def root():
-    return {"msg": "스레드와 asyncio를 함께 사용 중"}
+async def login_form(request: Request):
+    if request.session.get("user_No"):
+        uno = request.session.get("user_No")
+        return RedirectResponse(url=f"/balance/{uno}", status_code=303)
+    return templates.TemplateResponse("login/login.html", {"request": request})
+
 
 @app.get("/price")
 async def get_price():
@@ -109,6 +138,32 @@ async def get_price():
         "KRW-SUI": price,
         "checked_at": checked_at
     }
+
+
+@app.post("/loginchk")
+async def login(request: Request, response: Response, uid: str = Form(...), upw: str = Form(...),
+        db: AsyncSession = Depends(get_db)):
+    query = text(
+        "SELECT userNo, userName, userRole FROM trUser WHERE userId = :username AND userPasswd = password(:password)")
+    result = await db.execute(query, {"username": uid, "password": upw})
+    user = result.fetchone()
+    if user is None:
+        return templates.TemplateResponse("login/login.html", {"request": request, "error": "Invalid credentials"})
+    else:
+        queryu = text("UPDATE trUser SET lastLogin = now() WHERE userId = :username")
+        await db.execute(queryu, {"username": uid})
+        await db.commit()
+    # 서버 세션에 사용자 ID 저장
+    request.session["user_No"] = user[0]
+    request.session["user_Name"] = user[1]
+    request.session["user_Role"] = user[2]
+    return RedirectResponse(url=f"/balance/{user[0]}", status_code=303)
+
+
+@app.get("/logout")
+async def logout(request: Request):
+    request.session.clear()  # 세션 삭제
+    return RedirectResponse(url="/")
 
 
 @app.get("/balanceinit/{uno}/{iniamt}")
@@ -131,11 +186,12 @@ async def init_balance(request: Request, uno: int, iniamt: float, db: AsyncSessi
 
 
 @app.get("/balance/{uno}")
-async def my_balance(request: Request, uno: int, db: AsyncSession = Depends(get_db)):
+async def my_balance(request: Request,uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+    if uno != user_session:
+        return RedirectResponse(url="/", status_code=303)
     try:
         mycoins = await get_current_balance(uno, db)
-    except Exception as e :
-        print("Init Error !!",e)
-    finally:
-        return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "mycoins": mycoins})
-
+    except Exception as e:
+        print("Init Error !!", e)
+        mycoins = None
+    return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "mycoins": mycoins})
