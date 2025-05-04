@@ -157,7 +157,7 @@ async def login(request: Request, response: Response, uid: str = Form(...), upw:
     request.session["user_No"] = user[0]
     request.session["user_Name"] = user[1]
     request.session["user_Role"] = user[2]
-    return RedirectResponse(url=f"/balance/{user[0]}", status_code=303)
+    return RedirectResponse(url=f"/balance/{user[0]}",status_code=303)
 
 
 @app.get("/logout")
@@ -194,4 +194,5 @@ async def my_balance(request: Request,uno: int, user_session: int = Depends(requ
     except Exception as e:
         print("Init Error !!", e)
         mycoins = None
-    return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "mycoins": mycoins})
+    usern = request.session.get("user_Name")
+    return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "user_Name": usern , "mycoins": mycoins})

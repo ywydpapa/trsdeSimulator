@@ -40,15 +40,22 @@
                                 <tbody>
                                 {% for coin in mycoins %}
                                 <tr>
-                                    <td style="text-align: center"> {{ coin[5] }} </td>
-                                    <td style="text-align: right"> {{ coin[9] | currency }} </td>
-                                    <td style="text-align: right">  </td>
-                                    <td style="text-align: right"> {{ coin[6] | currency }} </td>
-                                    <td style="text-align: right"> {{ coin[6] | currency }} </td>
-                                    <td style="text-align: right">  </td>
-                                    <td style="text-align: right">  </td>
-                                    <td style="text-align: right">  </td>
-                                    <td style="text-align: right"></td>
+                                    <td class="coins" style="text-align: center"> {{ coin[5] }} </td>
+                                    <td class="vola" style="text-align: right"> {{ coin[9] | currency }} </td>
+                                    <td class="volb" style="text-align: right">  </td>
+                                    <td class="aprice" style="text-align: right"> {{ coin[6] | currency }} </td>
+                                    <td class="cprice" style="text-align: right"> {{ coin[6] | currency }} </td>
+                                    <td class="cvalue" style="text-align: right">  </td>
+                                    <td class="balanceprice"style="text-align: right">  </td>
+                                    <td class="balancerate" style="text-align: right">  </td>
+                                    <td style="display: flex; justify-content: space-between;">
+                                        <button class="btn form-control btn-primary" style="width: 48%;"
+                                                onclick="sellcoin( {{ userNo }},{{ coin[5] }})"> 매도
+                                        </button>
+                                        <button class="btn form-control btn-danger" style="width: 48%;"
+                                                onclick="buycoin( {{ userNo }},{{ coin[5] }})"> 매수
+                                        </button>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                                 <tr>

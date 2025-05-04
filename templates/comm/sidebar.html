@@ -15,7 +15,7 @@
 
     <!-- Nav Item - Dashboard -->
     <li class="nav-item">
-        <a class="nav-link" href="/userHome">
+        <a class="nav-link" href="/balance/{{ userNo }}">
             <i class="fas fa-fw fa-tachometer-alt"></i>
             <span>Home</span></a>
     </li>
@@ -38,8 +38,8 @@
         <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
             <div class="bg-white py-2 collapse-inner rounded">
                 <h6 class="collapse-header">관리 가능 목록</h6>
-                <a class="collapse-item" href="/regionclubList/15">투자</a>
-                <a class="collapse-item" href="/rmemberList/15">회원목록</a>
+                <a class="collapse-item" href="/regionclubList/15">나의 자산 현황</a>
+                <a class="collapse-item" href="/rmemberList/15">나의 투자결과 조회</a>
             </div>
         </div>
     </li>
@@ -54,11 +54,9 @@
              data-parent="#accordionSidebar">
             <div class="bg-white py-2 collapse-inner rounded">
                 <h6 class="collapse-header">설정 가능 목록</h6>
-                <a class="collapse-item" href="/clubList">클럽목록</a>
-                <a class="collapse-item" href="/rankList">직책목록</a>
-                <a class="collapse-item" href="/memberList">회원목록</a>
-                <a class="collapse-item" href="/regionList"> 지역목록</a>
-                <a class="collapse-item" href="/boardManager/15"> 게시판목록</a>
+                <a class="collapse-item" href="/clubList">제안코인목록</a>
+                <a class="collapse-item" href="/rankList">거래설정</a>
+                <a class="collapse-item" href="/memberList">시뮬레이션 상황</a>
             </div>
         </div>
     </li>
@@ -67,7 +65,7 @@
 
     <!-- Heading -->
     <div class="sidebar-heading">
-        회원 정보
+        투자 정보
     </div>
 
     <!-- Nav Item - Charts -->
