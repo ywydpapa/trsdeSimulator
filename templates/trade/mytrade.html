@@ -89,7 +89,8 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <button class="form-control btn btn-danger" onclick="buycryptoRun()">시장가 매수</button>
+                                        <button class="form-control btn btn-danger" onclick="buycryptoRun()">시장가 매수
+                                        </button>
                                     </td>
                                 </tr>
                                 <tr>
@@ -99,8 +100,8 @@
                                 </tr>
                                 <tr>
                                     <td style="text-align: center">매수평균 가격</td>
-                                    <td></td>
-                                    <td></td>
+                                    <td id="coinavgp" style="text-align: right"></td>
+                                    <td id="marginrate" style="text-align: right">></td>
                                 </tr>
                                 <tr>
                                     <td style="text-align: center">매도</td>
@@ -115,7 +116,8 @@
                                         </select>
                                     </td>
                                     <td>
-                                        <button class="form-control btn btn-primary" onclick="sellcryptoRun()">시장가 매도</button>
+                                        <button class="form-control btn btn-primary" onclick="sellcryptoRun()">시장가 매도
+                                        </button>
                                     </td>
                                 </tr>
                                 <tr>
@@ -189,42 +191,54 @@
 
 
     $('#coinn').change(function () {
-    var market = $(this).val();
-    toggleBuyInputs();
-    if (market) {
-        var upbitApi = $.getJSON('https://api.upbit.com/v1/ticker?markets=' + market);
-        var uno = $('#userNo').val();
-        var balanceApi = $.getJSON('/balancecrypto/' + uno +'/'+ market);
-        $.when(upbitApi, balanceApi).done(function (upbitRes, balanceRes) {
-            var upbitData = upbitRes[0];
-            var balanceData = balanceRes[0];
-
-            if (upbitData && upbitData.length > 0) {
-                var price = upbitData[0].trade_price;
-                var krw = numberNoneCommas($("#krwbalance").text());
-                if (price > 0) {
-                    var amount = Math.floor((krw / price) * 1000000) / 1000000;
-                    setBuyableAmount(amount);
-                    $("#selcprice").text(numberWithCommas(price));
+        var market = $(this).val();
+        toggleBuyInputs();
+        if (market) {
+            var upbitApi = $.getJSON('https://api.upbit.com/v1/ticker?markets=' + market);
+            var uno = $('#userNo').val();
+            var balanceApi = $.getJSON('/balancecrypto/' + uno + '/' + market);
+            $.when(upbitApi, balanceApi).done(function (upbitRes, balanceRes) {
+                var upbitData = upbitRes[0];
+                var balanceData = balanceRes[0];
+                if (upbitData && upbitData.length > 0) {
+                    var price = upbitData[0].trade_price;
+                    var krw = numberNoneCommas($("#krwbalance").text());
+                    if (price > 0) {
+                        var amount = Math.floor((krw / price) * 1000000) / 1000000;
+                        setBuyableAmount(amount);
+                        $("#selcprice").text(numberWithCommas(price));
+                    } else {
+                        setBuyableAmount("-");
+                    }
                 } else {
                     setBuyableAmount("-");
                 }
-            } else {
+                var coinSymbol = market.split("-")[1]; // KRW-BTC → BTC
+                var coinBalance = balanceData[market] !== undefined ? balanceData[market] : "-";
+                var coinAvgP = balanceData["avgPrice"] !== undefined ? balanceData["avgPrice"] : "-";
+                let ratioText;
+                if (
+                    price !== undefined && price !== null &&
+                    coinAvgP !== undefined && coinAvgP !== null &&
+                    coinAvgP !== "-" && Number(coinAvgP) !== 0
+                ) {
+                    var ratio = ((price / Number(coinAvgP)) - 1) * 100;
+                    ratioText = ratio.toFixed(2) + "%";
+                } else {
+                    ratioText = "-";
+                }
+                $("#marginrate").text(ratioText);
+                $("#coinbalance").text(coinBalance);
+                $("#coinavgp").text(coinAvgP);
+            }).fail(function () {
                 setBuyableAmount("-");
-            }
-            var coinSymbol = market.split("-")[1]; // KRW-BTC → BTC
-            var coinBalance = balanceData[market] !== undefined ? balanceData[market] : "-";
-            $("#coinbalance").text(coinBalance);
-
-        }).fail(function () {
+                $("#coinbalance").text("-");
+            });
+        } else {
             setBuyableAmount("-");
             $("#coinbalance").text("-");
-        });
-    } else {
-        setBuyableAmount("-");
-        $("#coinbalance").text("-");
-    }
-});
+        }
+    });
 
 
     function setinit() {
@@ -307,6 +321,9 @@
                 .then(data => {
                     if (data.success) {
                         alert("구매가 완료되었습니다!");
+                        setTimeout(() => {
+                            window.location.href = data.redirect;
+                        }, 1000);
                     } else {
                         alert("구매 실패: " + (data.message || "알 수 없는 오류"));
                     }
@@ -346,7 +363,9 @@
                 .then(data => {
                     if (data.success) {
                         alert("구매가 완료되었습니다!");
-                        setTimeout(() => {window.location.href = data.redirect;}, 1000);
+                        setTimeout(() => {
+                            window.location.href = data.redirect;
+                        }, 1000);
                     } else {
                         alert("구매 실패: " + (data.message || "알 수 없는 오류"));
                     }
@@ -365,41 +384,43 @@
             alert("매도대상 코인을 선택하세요.");
             return;
         }
-            uno = $("#userNo").val();
-            brate = $("#sellrate option:selected").val();
-            alert(`비율(${brate})로 시장가 매도합니다.`);
-            cprice = $("#selcprice").text().replace(/,/g, '');
-            coinName = selctypto;
-            samount = $("#coinbalance").text().replace(/,/g, '');
-            svolume = samount * brate;
-            const url = `/tradesellmarket/${uno}/${encodeURIComponent(coinName)}/${cprice}/${svolume}`;
-            fetch(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+        uno = $("#userNo").val();
+        brate = $("#sellrate option:selected").val();
+        alert(`비율(${brate})로 시장가 매도합니다.`);
+        cprice = $("#selcprice").text().replace(/,/g, '');
+        coinName = selctypto;
+        samount = $("#coinbalance").text().replace(/,/g, '');
+        svolume = samount * brate;
+        const url = `/tradesellmarket/${uno}/${encodeURIComponent(coinName)}/${cprice}/${svolume}`;
+        fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+        })
+            .then(async response => {
+                const text = await response.text();
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    throw new Error("서버에서 올바른 JSON이 오지 않았습니다:\n" + text);
+                }
             })
-                .then(async response => {
-                    const text = await response.text();
-                    try {
-                        return JSON.parse(text);
-                    } catch (e) {
-                        throw new Error("서버에서 올바른 JSON이 오지 않았습니다:\n" + text);
-                    }
-                })
-                .then(data => {
-                    if (data.success) {
-                        alert("매도가 완료되었습니다!");
-                        setTimeout(() => {window.location.href = data.redirect;}, 1000);
-                    } else {
-                        alert("구매 실패: " + (data.message || "알 수 없는 오류"));
-                    }
-                })
-                .catch(err => {
-                    alert("서버와 통신 중 오류가 발생했습니다.\n" + err.message);
-                    console.error(err);
-                });
-        }
+            .then(data => {
+                if (data.success) {
+                    alert("매도가 완료되었습니다!");
+                    setTimeout(() => {
+                        window.location.href = data.redirect;
+                    }, 1000);
+                } else {
+                    alert("구매 실패: " + (data.message || "알 수 없는 오류"));
+                }
+            })
+            .catch(err => {
+                alert("서버와 통신 중 오류가 발생했습니다.\n" + err.message);
+                console.error(err);
+            });
+    }
 
 
 </script>

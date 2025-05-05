@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% include '/comm/adheader.html' %}
+</head>
+<body id="page-top">
+<!-- Page Wrapper -->
+<div id="wrapper">
+    {% include '/comm/sidebar.html' %}
+    <!-- Content Wrapper -->
+    <div id="content-wrapper" class="d-flex flex-column">
+        <!-- Main Content -->
+        <div id="content">
+            {% include '/comm/adtopbar.html' %}
+            <!-- Begin Page Content -->
+            <div class="container-fluid">
+                <!-- Page Heading -->
+                <!-- Page Heading -->
+                <!-- DataTales Example -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h5 class="m-0 font-weight-bold text-primary">트레이딩 초기화</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                                <colgroup>
+                                    <col width="20%"/>
+                                    <col width="60%"/>
+                                    <col width="20%"/>
+                                </colgroup>
+                                <thead>
+                                <tr>
+                                    <td style="text-align: center"><h5>트레이딩 초기화</h5></td>
+                                    <td style="text-align: center"><h5>기존 거래내역은 모두 사라지며, 새로운 설정 금액으로 다시 시작하게 됩니다. </h5>
+                                    </td>
+                                    <td>
+                                    </td>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr>
+                                    <td style="text-align: center">설정금액</td>
+                                    <td style="text-align: right">
+                                        <input id="initamt" name="initamt" class="form-control" type="text" value="1000000" placeholder="1,000,000" max="" min="1000000" step="100000" style="text-align: right" onblur="formatinitOnBlur(this)" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');" />
+                                    </td>
+                                    <td><input type="hidden" id="userNo" value="{{ userNo }}"><button class="form-control btn-primary" onclick="trinitRun()">트레이딩 초기화</button></td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- /.container-fluid -->
+        </div>
+        <!-- End of Main Content -->
+        <!-- Footer -->
+        <footer class="sticky-footer bg-white">
+            <div class="container my-auto">
+                <div class="copyright text-center my-auto">
+                    <span>Copyright &copy; K3 Labs 2024</span>
+                </div>
+            </div>
+        </footer>
+        <!-- End of Footer -->
+    </div>
+    <!-- End of Content Wrapper -->
+</div>
+<!-- End of Page Wrapper -->
+<!-- Scroll to Top Button-->
+<a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+</a>
+<!-- Bootstrap core JavaScript-->
+
+{% include '/comm/adscript.html' %}
+</body>
+<script>
+
+    $(document).ready(function () {
+        setinit();
+    });
+
+    function setinit() {
+    }
+
+    function numberWithCommas(x) {
+        x = x.toString();
+        var parts = x.split(".");
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        return parts.length > 1 ? parts[0] + "." + parts[1] : parts[0];
+    }
+
+    function numberNoneCommas(x) {
+        return x.toString().replace(/[\D\s\._\-]+/g, "");
+    }
+
+    function formatinitOnBlur(input) {
+        // 포커스 아웃 시: 최소값, 최대값 적용 + 콤마 적용
+        let raw = input.value.replace(/[^0-9]/g, '');
+        let min = 500000;
+        let val = parseInt(raw, 10) || 0;
+        if (val < min) val = min;
+        input.value = numberWithCommas(val);
+    }
+
+    function trinitRun() {
+    var uno = $("#userNo").val();      // 사용자 번호
+    var iniamt = numberNoneCommas($("#initamt").val()); // 초기 금액
+    fetch(`/balanceinit/${uno}/${iniamt}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert("초기화 성공!\n");
+            window.location.href = `/balance/${uno}`;
+        } else {
+            alert("초기화 실패: " + (data.error || ""));
+        }
+    })
+    .catch(error => {
+        alert("오류 발생: " + error.message);
+    });
+}
+
+</script>
+</html>

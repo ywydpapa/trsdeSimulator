@@ -38,8 +38,8 @@
         <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
             <div class="bg-white py-2 collapse-inner rounded">
                 <h6 class="collapse-header">관리 가능 목록</h6>
-                <a class="collapse-item" href="/regionclubList/15">나의 자산 현황</a>
-                <a class="collapse-item" href="/rmemberList/15">나의 투자결과 조회</a>
+                <a class="collapse-item" href="/balance/{{ userNo }}">나의 자산 현황</a>
+                <a class="collapse-item" href="#">나의 투자결과 조회</a>
                 <a class="collapse-item" href="/tradecenter/{{userNo}}">직접 트레이딩</a>
             </div>
         </div>
@@ -55,9 +55,9 @@
              data-parent="#accordionSidebar">
             <div class="bg-white py-2 collapse-inner rounded">
                 <h6 class="collapse-header">설정 가능 목록</h6>
-                <a class="collapse-item" href="/clubList">제안코인목록</a>
-                <a class="collapse-item" href="/rankList">거래설정</a>
-                <a class="collapse-item" href="/memberList">시뮬레이션 상황</a>
+                <a class="collapse-item" href="/initTrade/{{ userNo }}">거래설정 초기화</a>
+                <a class="collapse-item" href="#">거래설정</a>
+                <a class="collapse-item" href="#">시뮬레이션 상황</a>
             </div>
         </div>
     </li>

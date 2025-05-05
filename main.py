@@ -15,7 +15,6 @@ import os
 import jinja2
 from datetime import datetime
 
-
 dotenv.load_dotenv()
 DATABASE_URL = os.getenv("dburl")
 engine = create_async_engine(DATABASE_URL, echo=True)
@@ -33,7 +32,6 @@ app.add_middleware(
 )
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
 
 # 공유 변수와 락 선언
 latest_price = None
@@ -105,20 +103,22 @@ async def buy_crypto(request, uno, coinn, price, volum, db: AsyncSession = Depen
         else:
             walletkrw = walletkrw - totalcost
             sumvolum = walletvolum + volum
-            ctype = "BUY-"+coinn
+            ctype = "BUY-" + coinn
             query = text("UPDATE trWallet set attrib = :xxxup WHERE userNo = :uno and currency = :coin")
             await db.execute(query, {"xxxup": 'XXXUPXXXUP', "uno": uno, "coin": "KRW"})
             await db.commit()
             query2 = text("INSERT INTO trWallet (userNo,changeType,currency,unitPrice,outAmt, remainAmt, linkNo) "
-                         "values (:uno, :ctype ,'KRW', 1 , :costkrw, :remkrw, :seckey)")
-            await db.execute(query2, {"uno": uno,"ctype": ctype ,"costkrw": totalcost, "remkrw": walletkrw, "seckey": seckey})
+                          "values (:uno, :ctype ,'KRW', 1 , :costkrw, :remkrw, :seckey)")
+            await db.execute(query2,
+                             {"uno": uno, "ctype": ctype, "costkrw": totalcost, "remkrw": walletkrw, "seckey": seckey})
             await db.commit()
             query4 = text("UPDATE trWallet set attrib = :xxxup WHERE userNo = :uno and currency = :coin")
             await db.execute(query4, {"xxxup": 'XXXUPXXXUP', "uno": uno, "coin": coinn})
             await db.commit()
             query3 = text("INSERT INTO trWallet (userNo,changeType,currency,unitPrice,inAmt, remainAmt, linkNo) "
                           "values (:uno, :ctype ,:coinn, :uprice, :inamt, :remamt, :seckey)")
-            await db.execute(query3, {"uno": uno,"ctype":ctype, "coinn": coinn,"uprice":price, "inamt": volum ,"remamt": sumvolum ,"seckey": seckey})
+            await db.execute(query3, {"uno": uno, "ctype": ctype, "coinn": coinn, "uprice": price, "inamt": volum,
+                                      "remamt": sumvolum, "seckey": seckey})
             await db.commit()
     except Exception as e:
         print("Error!!", e)
@@ -144,24 +144,27 @@ async def sell_crypto(request, uno, coinn, price, volum, db: AsyncSession = Depe
         else:
             walletkrw = walletkrw + totalcost
             sumvolum = walletvolum - volum
-            ctype = "SELL-"+coinn
+            ctype = "SELL-" + coinn
             query = text("UPDATE trWallet set attrib = :xxxup WHERE userNo = :uno and currency = :coin")
             await db.execute(query, {"xxxup": 'XXXUPXXXUP', "uno": uno, "coin": "KRW"})
             await db.commit()
             query2 = text("INSERT INTO trWallet (userNo,changeType,currency,unitPrice,inAmt, remainAmt, linkNo) "
-                         "values (:uno, :ctype ,'KRW', 1 , :costkrw, :remkrw, :seckey)")
-            await db.execute(query2, {"uno": uno,"ctype": ctype ,"costkrw": totalcost, "remkrw": walletkrw, "seckey": seckey})
+                          "values (:uno, :ctype ,'KRW', 1 , :costkrw, :remkrw, :seckey)")
+            await db.execute(query2,
+                             {"uno": uno, "ctype": ctype, "costkrw": totalcost, "remkrw": walletkrw, "seckey": seckey})
             await db.commit()
             query4 = text("UPDATE trWallet set attrib = :xxxup WHERE userNo = :uno and currency = :coin")
             await db.execute(query4, {"xxxup": 'XXXUPXXXUP', "uno": uno, "coin": coinn})
             await db.commit()
             query3 = text("INSERT INTO trWallet (userNo,changeType,currency,unitPrice,outAmt, remainAmt, linkNo) "
                           "values (:uno, :ctype ,:coinn, :uprice, :inamt, :remamt, :seckey)")
-            await db.execute(query3, {"uno": uno,"ctype":ctype, "coinn": coinn,"uprice":price, "inamt": volum ,"remamt": sumvolum ,"seckey": seckey})
+            await db.execute(query3, {"uno": uno, "ctype": ctype, "coinn": coinn, "uprice": price, "inamt": volum,
+                                      "remamt": sumvolum, "seckey": seckey})
             await db.commit()
     except Exception as e:
         print("Error!!", e)
     return True
+
 
 async def get_current_balance(uno, db: AsyncSession = Depends(get_db)):
     try:
@@ -180,6 +183,32 @@ async def get_current_balance(uno, db: AsyncSession = Depends(get_db)):
     finally:
         return mycoins, coinprice
 
+
+async def get_avg_price(uno, setkey, coinn, db: AsyncSession = Depends(get_db)):
+    try:
+        query = text(
+            "SELECT linkNo, regDate, changeType, currency, unitPrice, inAmt, outAmt, remainAmt, session_id, IFNULL(누적매수금액 / NULLIF(누적매수수량,0), 0) AS 매수평균단가 FROM "
+            "(SELECT *,SUM(CASE WHEN changeType LIKE 'BUY%' THEN unitPrice * inAmt ELSE 0 END) OVER (PARTITION BY session_id ORDER BY regDate, linkNo ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS 누적매수금액,SUM(CASE WHEN changeType LIKE 'BUY%' THEN inAmt ELSE 0 END) OVER (PARTITION BY session_id ORDER BY regDate, linkNo ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS 누적매수수량 "
+            "FROM ( SELECT *, SUM(is_zero) OVER (ORDER BY regDate, linkNo ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS session_id "
+            "FROM ( SELECT *, CASE WHEN remainAmt = 0 THEN 1 ELSE 0 END AS is_zero FROM trWallet WHERE currency = :coinn and userNo = :uno ORDER BY regDate, linkNo ) t1 ) t2 ) t3 WHERE linkNo = :linkno ORDER BY regDate DESC, linkNo DESC LIMIT 1")
+        result = await db.execute(query, {"coinn": coinn, "linkno": setkey, "uno": uno})
+        mycoin = result.fetchone()
+        return mycoin
+    except Exception as e:
+        print("Error!!", e)
+        return None
+
+
+async def get_avg_by_coin(uno,setkey ,db: AsyncSession = Depends(get_db)):
+    try:
+        query = text(
+            "SELECT currency,IFNULL(누적매수금액 / NULLIF(누적매수수량,0), 0) AS avg_price FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY currency ORDER BY regDate DESC, linkNo DESC) AS rn,SUM(CASE WHEN changeType LIKE 'BUY%' THEN unitPrice * inAmt ELSE 0 END) OVER (PARTITION BY currency, session_id ORDER BY regDate, linkNo ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS 누적매수금액, SUM(CASE WHEN changeType LIKE 'BUY%' THEN inAmt ELSE 0 END)                OVER (PARTITION BY currency, session_id ORDER BY regDate, linkNo ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS 누적매수수량    FROM (        SELECT *,               SUM(is_zero) OVER (PARTITION BY currency ORDER BY regDate, linkNo ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS session_id FROM ( SELECT *, CASE WHEN remainAmt = 0 THEN 1 ELSE 0 END AS is_zero FROM trWallet WHERE userNo = :uno and linkNo = :linkno ORDER BY regDate, linkNo ) t1 ) t2) t3 WHERE rn = 1")
+        result = await db.execute(query, {"uno": uno, "linkno": setkey})
+        rows = result.fetchall()
+        return {row.currency: round(float(row.avg_price),2) for row in rows}
+    except Exception as e:
+        print(e)
+        return {}
 
 
 def require_login(request: Request):
@@ -203,6 +232,7 @@ async def startup_event():
     # asyncio.create_task(async_daemon())
     return True
 
+
 @app.get("/")
 async def login_form(request: Request):
     if request.session.get("user_No"):
@@ -210,6 +240,14 @@ async def login_form(request: Request):
         return RedirectResponse(url=f"/balance/{uno}", status_code=303)
     return templates.TemplateResponse("login/login.html", {"request": request})
 
+
+@app.get("/initTrade/{uno}")
+async def initrade(request: Request, uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+    if uno != user_session:
+        return RedirectResponse(url="/", status_code=303)
+    usern = request.session.get("user_Name")
+    return templates.TemplateResponse("trade/inittrade.html",
+                                      {"request": request, "userNo": uno, "user_Name": usern})
 
 @app.get("/price")
 async def get_price():
@@ -224,7 +262,7 @@ async def get_price():
 
 @app.post("/loginchk")
 async def login(request: Request, response: Response, uid: str = Form(...), upw: str = Form(...),
-        db: AsyncSession = Depends(get_db)):
+                db: AsyncSession = Depends(get_db)):
     query = text(
         "SELECT userNo, userName, userRole, setupKey FROM trUser WHERE userId = :username AND userPasswd = password(:password)")
     result = await db.execute(query, {"username": uid, "password": upw})
@@ -240,7 +278,7 @@ async def login(request: Request, response: Response, uid: str = Form(...), upw:
     request.session["user_Name"] = user[1]
     request.session["user_Role"] = user[2]
     request.session["setupKey"] = user[3]
-    return RedirectResponse(url=f"/balance/{user[0]}",status_code=303)
+    return RedirectResponse(url=f"/balance/{user[0]}", status_code=303)
 
 
 @app.get("/logout")
@@ -249,10 +287,13 @@ async def logout(request: Request):
     return RedirectResponse(url="/")
 
 
-@app.get("/balanceinit/{uno}/{iniamt}")
+@app.post("/balanceinit/{uno}/{iniamt}")
 async def init_balance(request: Request, uno: int, iniamt: float, db: AsyncSession = Depends(get_db)):
-    global seckey
+    global seckey, mycoins
     mycoins = None
+    result = {
+        "success": False,
+    }
     try:
         query0 = text(f"SELECT * FROM trWallet WHERE userNo = :uno and attrib not like :attxx")
         selres = await db.execute(query0, {"uno": uno, "attxx": "%XXX%"})
@@ -261,45 +302,64 @@ async def init_balance(request: Request, uno: int, iniamt: float, db: AsyncSessi
             await db.execute(query, {"attset": "XXXUPXXXUP", "uno": uno})
         seckey = datetime.now().strftime("%Y%m%d%H%M%S")
         query2 = text(f"INSERT INTO trWallet (userNo,changeType,currency,unitPrice,inAmt, remainAmt, linkNo) "
-                     "values (:uno, 'INITAMT','KRW', '1.0', :inamt, :inamt1, :seckey)")
+                      "values (:uno, 'INITAMT','KRW', '1.0', :inamt, :inamt1, :seckey)")
         await db.execute(query2, {"uno": uno, "inamt": iniamt, "inamt1": iniamt, "seckey": seckey})
         await db.commit()
         query3 = text(f"UPDATE trUser set setupKey = :seckey WHERE userNo = :uno and attrib not like :attxx")
         await db.execute(query3, {"seckey": seckey, "uno": uno, "attxx": '%XXX%'})
         await db.commit()
         mycoins = await get_current_balance(uno, db)
-    except Exception as e :
-        print("Init Error !!",e)
-        mycoins = ([],{})
+        result = {
+            "success": True,
+            "setupKey": seckey,
+            "userNo": uno,
+            "user_Name": request.session.get("user_Name"),
+        }
+    except Exception as e:
+        print("Init Error !!", e)
+        mycoins = ([], {})
+        result = {
+            "success": False,
+            "error": str(e)
+        }
     request.session["setupKey"] = seckey
-    usern = request.session.get("user_Name")
-    return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno,"user_Name": usern , "mycoins": mycoins[0],"coinprice": mycoins[1]})
+    return JSONResponse(content=result)
 
 
 @app.get("/balance/{uno}")
-async def my_balance(request: Request,uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def my_balance(request: Request, uno: int, user_session: int = Depends(require_login),
+                     db: AsyncSession = Depends(get_db)):
+    global myavgp
     mycoins = None
+    myavgp = None
     if uno != user_session:
         return RedirectResponse(url="/", status_code=303)
     try:
         mycoins = await get_current_balance(uno, db)
+        myavgp = await get_avg_by_coin(uno, request.session.get("setupKey"), db)
+        print(myavgp)
     except Exception as e:
         print("Init Error !!", e)
         mycoins = None
     usern = request.session.get("user_Name")
-    return templates.TemplateResponse("wallet/mywallet.html",{"request": request, "userNo": uno, "user_Name": usern , "mycoins": mycoins[0], "coinprice": mycoins[1]})
+    return templates.TemplateResponse("wallet/mywallet.html",
+                                      {"request": request, "userNo": uno, "user_Name": usern, "mycoins": mycoins[0],"myavgp":myavgp,
+                                       "coinprice": mycoins[1]})
 
 
 @app.get("/balancecrypto/{uno}/{coinn}")
-async def my_balance(request: Request, uno: int,coinn: str, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def my_balance(request: Request, uno: int, coinn: str, user_session: int = Depends(require_login),
+                     db: AsyncSession = Depends(get_db)):
     mycoin = {}
     if uno != user_session:
         return RedirectResponse(url="/", status_code=303)
     try:
         mycoins = await get_current_balance(uno, db)
+        myavgp = await get_avg_by_coin(uno, request.session.get("setupKey"), db)
         for coin in mycoins[0]:
             if coin[5] == coinn:
                 mycoin[coin[5]] = coin[9]
+                mycoin["avgPrice"] = myavgp.get(coin[5],0)
     except Exception as e:
         print("Init Error !!", e)
         mycoin = None
@@ -307,7 +367,8 @@ async def my_balance(request: Request, uno: int,coinn: str, user_session: int = 
 
 
 @app.get("/tradecenter/{uno}")
-async def tradecenter(request: Request,uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def tradecenter(request: Request, uno: int, user_session: int = Depends(require_login),
+                      db: AsyncSession = Depends(get_db)):
     global coinlist
     mycoins = None
     if uno != user_session:
@@ -319,20 +380,20 @@ async def tradecenter(request: Request,uno: int, user_session: int = Depends(req
         print("Init Error !!", e)
     usern = request.session.get("user_Name")
     setkey = request.session.get("setupKey")
-    return templates.TemplateResponse("trade/mytrade.html",{"request": request, "userNo": uno, "user_Name": usern, "mycoins": mycoins[0], "coinprice": mycoins[1],"setkey":setkey, "coinlist":coinlist})
+    return templates.TemplateResponse("trade/mytrade.html",
+                                      {"request": request, "userNo": uno, "user_Name": usern, "mycoins": mycoins[0],
+                                       "coinprice": mycoins[1], "setkey": setkey, "coinlist": coinlist})
 
-
-from fastapi.responses import JSONResponse
 
 @app.post("/tradebuymarket/{uno}/{coinn}/{cprice}/{volum}")
 async def tradebuymarket(
-    request: Request,
-    uno: int,
-    coinn: str,
-    cprice: float,
-    volum: float,
-    user_session: int = Depends(require_login),
-    db: AsyncSession = Depends(get_db)
+        request: Request,
+        uno: int,
+        coinn: str,
+        cprice: float,
+        volum: float,
+        user_session: int = Depends(require_login),
+        db: AsyncSession = Depends(get_db)
 ):
     if uno != user_session:
         return JSONResponse({"success": False, "message": "권한이 없습니다.", "redirect": "/"})
@@ -350,15 +411,7 @@ async def tradebuymarket(
 
 
 @app.post("/tradesellmarket/{uno}/{coinn}/{cprice}/{volum}")
-async def tradesellmarket(
-    request: Request,
-    uno: int,
-    coinn: str,
-    cprice: float,
-    volum: float,
-    user_session: int = Depends(require_login),
-    db: AsyncSession = Depends(get_db)
-):
+async def tradesellmarket(request: Request, uno: int, coinn: str, cprice: float, volum: float, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
     if uno != user_session:
         return JSONResponse({"success": False, "message": "권한이 없습니다.", "redirect": "/"})
     try:

@@ -43,7 +43,7 @@
                                     <td class="coins" style="text-align: center"> {{ coin[5] }}</td>
                                     <td class="vola" style="text-align: right"> {{ coin[9] }}</td>
                                     <td class="volb" style="text-align: right">0</td>
-                                    <td class="aprice" style="text-align: right"> {{ coin[6] }}</td>
+                                    <td class="aprice" style="text-align: right"> {% if coin[5] == 'KRW' %}1{% else %}{{ myavgp[coin[5]] }}{% endif %}</td>
                                     <td class="cprice" style="text-align: right">
                                         {{ coinprice[coin[5]] }}
                                     </td>
