@@ -53,10 +53,10 @@
                                     {% if coin[5]!="KRW" %}
                                     <td style="display: flex; justify-content: space-between;">
                                         <button class="btn form-control btn-primary" style="width: 48%;"
-                                                onclick="sellcoin( {{ userNo }},{{ coin[5] }})"> 매도
+                                                onclick="sellcoin( {{ userNo }},'{{ coin[5] }}',{{ coinprice[coin[5]] }},{{ coin[9]}})"> 매도
                                         </button>
                                         <button class="btn form-control btn-danger" style="width: 48%;"
-                                                onclick="buycoin( {{ userNo }},{{ coin[5] }})"> 매수
+                                                onclick="buycoin( {{ userNo }},'{{ coin[5] }}',{{ coinprice[coin[5]] }})"> 매수
                                         </button>
                                     </td>
                                     {% elif coin[5] == "KRW" %}
@@ -68,12 +68,10 @@
                                             <div class="d-inline-block">
                                                 <select class="form-control" name="sellrate" id="sellrate">
                                                     <option value=1>100%</option>
-                                                    <option value=2>50%</option>
-                                                    <option value=4>25%</option>
-                                                    <option value=10>10%</option>
-                                                    <option value=20>5%</option>
-                                                    <option value=100>1%</option>
-                                                    <option value=0>10,000원</option>
+                                                    <option value=0.5>50%</option>
+                                                    <option value=0.25>25%</option>
+                                                    <option value=0.1>10%</option>
+                                                    <option value=0.05>5%</option>
                                                 </select></div>
                                             <div class="d-inline-block">매수 금액
                                             </div>
@@ -129,25 +127,39 @@
     });
 
 
-    function sellcoin(uno, coinn) {
-        if (confirm("본 코인을 시장가로 매도하시겠습니까? 자산이 5,000원 미만인 경우 5,000원을 추가로 매입하여 일괄 매도합니다.")) {
+    function sellcoin(uno, coinn, cprice, volum) {
+        if (confirm("본 코인을 시장가로 매도하시겠습니까?")) {
             let rate = $("#sellrate option:selected").val();
-            data = [uno, coinn, rate]
-            console.log(data);
+            let svolume = volum * rate;
             $.ajax({
                 type: "POST",
-                url: '/sellcoin',
-                data: data,
+                url: `/tradesellmarket/${uno}/${encodeURIComponent(coinn)}/${cprice}/${svolume}`,
                 processData: false,
                 contentType: false,
                 success: (res) => {
                     console.log(res);
-                    location.reload();
+                    window.location.href = `/balance/${uno}`;
                 }
             });
-        } else {
-        }
-    }
+        }}
+
+
+        function buycoin(uno, coinn, cprice) {
+        if (confirm("본 코인을 시장가로 매수하시겠습니까?")) {
+            let costkrw = numberNoneCommas($("#buyamt").val());
+            let svolume = costkrw / cprice;
+            $.ajax({
+                type: "POST",
+                url: `/tradebuymarket/${uno}/${encodeURIComponent(coinn)}/${cprice}/${svolume}`,
+                processData: false,
+                contentType: false,
+                success: (res) => {
+                    console.log(res);
+                    window.location.href = `/balance/${uno}`;
+                }
+            });
+        }}
+
 
     function numberWithCommas(x) {
         x = x.toString();
