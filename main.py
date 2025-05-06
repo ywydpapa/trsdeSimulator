@@ -1,6 +1,7 @@
 import asyncio
 import aiohttp
 from fastapi import FastAPI, Depends, Request, Form, Response, HTTPException, status, File, UploadFile
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -182,6 +183,19 @@ async def get_current_balance(uno, db: AsyncSession = Depends(get_db)):
         print("Error!!", e)
     finally:
         return mycoins, coinprice
+
+
+async def get_logbook(request, uno, coinn, db: AsyncSession = Depends(get_db)):
+    global mylogs
+    try:
+        query = text("SELECT changeType, currency,unitPrice,inAmt,outAmt,remainAmt,regDate FROM trWallet where userNo = :uno and currency = :coinn and linkNo = :seckey order by regDate ")
+        result = await db.execute(query, {"uno": uno, "coinn": coinn, "seckey": request.session.get("setupKey")})
+        rows = result.fetchall()
+        columns = result.keys()
+        data = [dict(zip(columns, row)) for row in rows]
+        return jsonable_encoder(data)
+    except Exception as e:
+        print("Error!!", e)
 
 
 async def get_avg_price(uno, setkey, coinn, db: AsyncSession = Depends(get_db)):
@@ -425,3 +439,32 @@ async def tradesellmarket(request: Request, uno: int, coinn: str, cprice: float,
     except Exception as e:
         print("Error!!", e)
         return JSONResponse({"success": False, "message": "서버 오류", "redirect": "/tradecenter"})
+
+
+@app.get("/tradelogbook/{uno}")
+async def tradelogbook(request: Request, uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+    mycoins = None
+    if uno != user_session:
+        return RedirectResponse(url="/", status_code=303)
+    try:
+        mycoins = await get_current_balance(uno, db)
+    except Exception as e:
+        print("Init Error !!", e)
+    usern = request.session.get("user_Name")
+    setkey = request.session.get("setupKey")
+    return templates.TemplateResponse("trade/tradelog.html",
+                                      {"request": request, "userNo": uno, "user_Name": usern, "mycoins": mycoins[0],
+                                       "coinprice": mycoins[1], "setkey": setkey})
+
+
+@app.get("/gettradelog/{uno}/{coinn}")
+async def gettradelog(request: Request, uno: int, coinn: str, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+    mylogs = None
+    if uno != user_session:
+        return RedirectResponse(url="/", status_code=303)
+    try:
+        mylogs = await get_logbook(request, uno, coinn, db)
+        print(mylogs)
+        return JSONResponse({"success": True, "data": mylogs})
+    except Exception as e:
+        print("Get Log Error !!", e)

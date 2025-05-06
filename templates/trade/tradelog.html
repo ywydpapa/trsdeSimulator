@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% include '/comm/adheader.html' %}
+    <style>
+        th {
+            text-align: center !important;
+        }
+
+        td.dt-right {
+            text-align: right !important;
+        }
+
+        td.dt-center {
+            text-align: center !important;
+        }
+    </style>
+</head>
+<body id="page-top">
+<!-- Page Wrapper -->
+<div id="wrapper">
+    {% include '/comm/sidebar.html' %}
+    <!-- Content Wrapper -->
+    <div id="content-wrapper" class="d-flex flex-column">
+        <!-- Main Content -->
+        <div id="content">
+            {% include '/comm/adtopbar.html' %}
+            <!-- Begin Page Content -->
+            <div class="container-fluid">
+                <!-- Page Heading -->
+                <!-- Page Heading -->
+                <!-- DataTales Example -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">나의 거래 현황</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <h6 class="m-0 font-weight-bold text-primary">코인별 내역 조회 (현재 설정중이 아닌 코인의 거래 이력을 조회 할 수
+                                있습니다.)</h6>
+                            <table class="table table-bordered" id="searchtable">
+                                <tr style="text-align: center">
+                                    <td>
+                                        코인명
+                                    </td>
+                                    <td>
+                                        검색<input type="text" id="uno" value="{{ userNo }}" style="display: none">
+                                    </td>
+                                </tr>
+                                <tr style="text-align: center">
+                                    <td>
+                                        <select class="form-control" id="coinselector">
+                                            <option value="">기존 거래 코인 선택</option>
+                                            {% for coin in mycoins %}
+                                            {% if coin[5] != 'KRW' %}
+                                            <option value="{{ coin[5] }}">{{ coin[5] }}</option>
+                                            {% endif %}
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td style="text-align: center">
+                                        <button class="btn btn-primary" onclick="gethistory();">조 회</button>
+                                    </td>
+                                </tr>
+                            </table>
+                            <h6 class="m-0 font-weight-bold text-primary">상세 거래 내역</h6>
+                            <table class="table table-bordered" id="reqdataTable" width="100%" cellspacing="0">
+                                <thead>
+                                <tr style="text-align: center">
+                                    <td>코인명</td>
+                                    <td>거래시간</td>
+                                    <td>거래방법</td>
+                                    <td>시장가</td>
+                                    <td>매수량</td>
+                                    <td>매도량</td>
+                                    <td>잔량</td>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- /.container-fluid -->
+        </div>
+        <!-- End of Main Content -->
+        <!-- Footer -->
+        <footer class="sticky-footer bg-white">
+            <div class="container my-auto">
+                <div class="copyright text-center my-auto">
+                    <span>Copyright &copy; K3 Labs 2024</span>
+                </div>
+            </div>
+        </footer>
+        <!-- End of Footer -->
+    </div>
+    <!-- End of Content Wrapper -->
+</div>
+<!-- End of Page Wrapper -->
+<!-- Scroll to Top Button-->
+<a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+</a>
+<!-- Bootstrap core JavaScript-->
+
+{% include './comm/adscript.html' %}
+{% include './comm/adscripttable.html' %}
+</body>
+<script>
+    $(document).ready(function () {
+
+    });
+
+    function numberWithCommas(x) {
+        return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    function numberNoneCommas(x) {
+        return x.toString().replace(/,/g, "");
+    }
+
+    document.getElementById('coinselector').addEventListener('change', function () {
+        const coinn = this.value;
+        const userNo = $("#uno").val();
+        ;
+        fetch(`/gettradelog/${userNo}/${coinn}`)
+            .then(response => {
+                if (!response.ok) throw new Error('네트워크 오류');
+                return response.json();
+            })
+            .then(data => {
+                fillTable2(data.data);
+            })
+            .catch(error => {
+                console.error('에러:', error);
+            });
+    });
+
+    // DataTable 인스턴스 저장용 변수
+    let reqDataTable = null;
+
+    // 최초 1회만 초기화
+    function initializeTable() {
+        if (!$.fn.DataTable.isDataTable('#reqdataTable')) {
+            reqDataTable = $('#reqdataTable').DataTable({
+                columnDefs: [
+                    {targets: [0, 1, 2], className: 'dt-center'},
+                    {targets: [3, 4, 5, 6], className: 'dt-right'}
+                ]
+            });
+        } else {
+            reqDataTable = $('#reqdataTable').DataTable();
+        }
+    }
+
+    // 데이터 갱신 함수
+    function fillTable2(data) {
+        if (!reqDataTable) {
+            // 혹시나 fillTable2가 먼저 호출될 경우 초기화
+            initializeTable();
+        }
+        reqDataTable.clear();
+
+        if (data.length === 0) {
+            reqDataTable.draw();
+            return;
+        }
+
+        const columns = [
+            "currency",
+            "regDate",
+            "changeType",
+            "unitPrice",
+            "inAmt",
+            "outAmt",
+            "remainAmt"
+        ];
+
+        data.forEach(row => {
+            reqDataTable.row.add(columns.map(key => row[key]));
+        });
+
+        reqDataTable.draw();
+    }
+
+
+</script>
+</html>
