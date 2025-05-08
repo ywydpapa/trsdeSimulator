@@ -1,5 +1,5 @@
 import requests
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
 def get_upbit_trade_strength(market="KRW-BTC", count=100):
     # 1. API 요청 (한 번만 실행)
@@ -34,8 +34,8 @@ def get_upbit_trade_strength(market="KRW-BTC", count=100):
         diff_ms = abs(end_ts - start_ts)
         diff_sec = diff_ms / 1000  # 초 단위
         # timezone-aware UTC datetime 객체로 변환
-        start_time = datetime.fromtimestamp(start_ts / 1000, UTC)
-        end_time = datetime.fromtimestamp(end_ts / 1000, UTC)
+        start_time = datetime.fromtimestamp(start_ts / 1000, timezone.utc)
+        end_time = datetime.fromtimestamp(end_ts / 1000, timezone.utc)
         return diff_sec, start_time, end_time
 
     # 5. 체결강도 및 시간차 계산
