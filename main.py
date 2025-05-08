@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Dict
 
 import aiohttp
@@ -101,6 +102,7 @@ async def update_tradetrend():
                                     "reversal_count": len(reversal_points),
                                     "reversal_distances": reversal_distances,
                                 }
+                                time.sleep(0.2)
                             except Exception as e:
                                 print(f"코인트렌드 타임프레임 처리 중 오류 발생 {tf} for {coin[0]}: {str(e)}")
                                 continue
