@@ -513,3 +513,8 @@ async def tradestatus(request: Request, uno: int, user_session: int = Depends(re
 @app.get("/tradetrend")
 async def get_tradetrend():
     return tradetrend
+
+
+@app.get("/tradesignal")
+async def get_tradesignal(request: Request):
+    return templates.TemplateResponse("trade/tradetrend.html", {"request": request})

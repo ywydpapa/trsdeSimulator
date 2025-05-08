@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>코인별 트렌드 신호등 (자동 갱신)</title>
+  <style>
+    table {
+      border-collapse: collapse;
+      width: 70%;
+      margin: 30px auto;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: center;
+    }
+    th {
+      background-color: #f7f7f7;
+      font-weight: bold;
+    }
+    .red {
+      color: #fff;
+      background-color: #e74c3c;
+    }
+    .orange {
+      color: #fff;
+      background-color: #f39c12;
+    }
+    .green {
+      color: #fff;
+      background-color: #27ae60;
+    }
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center;">코인별 트렌드 신호등 (실시간)</h2>
+  <div style="width: 80%; margin: 0 auto; text-align:center;">
+    <button onclick="fetchAndRender()" style="margin-bottom:14px; padding:6px 14px;">새로고침</button>
+  </div>
+  <div id="tableContainer" style="width: 80%; margin: 0 auto; text-align:center;">
+    <span>표를 불러오는 중...</span>
+  </div>
+  <script>
+    function getSignalClass(slope) {
+      if (slope < 0) return {cls: 'red', label: '🔴 RED'};
+      else if (slope < 0.2) return {cls: 'orange', label: '🟠 ORANGE'};
+      else return {cls: 'green', label: '🟢 GREEN'};
+    }
+
+    async function fetchAndRender() {
+      const container = document.getElementById('tableContainer');
+      container.innerHTML = '<span>표를 불러오는 중...</span>';
+      try {
+        const res = await fetch('/tradetrend');
+        if (!res.ok) throw new Error('데이터 불러오기 실패');
+        const data = await res.json();
+
+        let html = `<table>
+          <thead>
+            <tr>
+              <th>코인</th>
+              <th>타임프레임</th>
+              <th>기울기</th>
+              <th>신호등</th>
+            </tr>
+          </thead>
+          <tbody>
+        `;
+
+        for (let coin in data) {
+          let tfs = data[coin];
+          let tfNames = Object.keys(tfs);
+          tfNames.forEach((tf, idx) => {
+            let deg = tfs[tf].angle_deg;
+            let sig = getSignalClass(deg);
+            html += `<tr>
+              ${idx === 0 ? `<td rowspan="${tfNames.length}">${coin}</td>` : ''}
+              <td>${tf}</td>
+              <td>${deg.toFixed(6)}</td>
+              <td class="${sig.cls}">${sig.label}</td>
+            </tr>`;
+          });
+        }
+        html += '</tbody></table>';
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = `<span style="color:red;">데이터를 불러올 수 없습니다.</span>`;
+      }
+    }
+
+    // 페이지 로드시 자동 실행
+    window.onload = fetchAndRender;
+  </script>
+</body>
+</html>
