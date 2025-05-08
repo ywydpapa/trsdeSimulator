@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% include '/comm/adheader.html' %}
+</head>
+<body id="page-top">
+<!-- Page Wrapper -->
+<div id="wrapper">
+    {% include '/comm/sidebar.html' %}
+    <!-- Content Wrapper -->
+    <div id="content-wrapper" class="d-flex flex-column">
+        <!-- Main Content -->
+        <div id="content">
+            {% include '/comm/adtopbar.html' %}
+            <!-- Begin Page Content -->
+            <div class="container-fluid">
+                <!-- DataTales Example -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h5 class="m-0 font-weight-bold text-primary">트레이딩 상태</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                                <colgroup>
+                                    <col width="25%"/>
+                                    <col width="25%"/>
+                                    <col width="25%"/>
+                                    <col width="25%"/>
+                                </colgroup>
+                                <thead>
+                                <tr>
+                                    <td style="text-align: center"><h5>선택 코인</h5></td>
+                                    <td><select id="coinn" name="coinn"
+                                                class="form-control selectpicker"
+                                                data-live-search="true">
+                                        <option value="">코인을 선택하세요</option>
+                                        {% for coin in coinlist %}
+                                        <option value="{{ coin['market'] }}">{{ coin['market'] }}</option>
+                                        {% endfor %}</select></td>
+                                    <td style="text-align: center" id="selcprice">
+                                    </td>
+                                    <td><button class="form-control btn btn-primary" onclick="sellcryptoRun()">설정추가</button>
+                                    </td>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr>
+                                    <td style="text-align: center">원화잔고</td>
+                                    <td style="text-align: right" id="krwbalance">
+                                        {% for coin in mycoins %}
+                                        {% if coin[5] == "KRW" %}
+                                        {{ coin[9] |currency }}
+                                        {% endif %}
+                                        {% endfor %}
+                                    </td>
+                                    <td><input type="hidden" id="userNo" value="{{ userNo }}"></td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td style="text-align: center"></td>
+                                    <td id="coinbalance" style="text-align: right"></td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="listTable" width="100%" cellspacing="0">
+                                <colgroup>
+                                    <col width="25%"/>
+                                    <col width="25%"/>
+                                    <col width="25%"/>
+                                    <col width="25%"/>
+                                </colgroup>
+                                <thead>
+                                <tr>
+                                    <td style="text-align: center"><h5>선택 코인</h5></td>
+                                    <td></td>
+                                    <td style="text-align: center" id=""></td>
+                                    <td></td>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- /.container-fluid -->
+        </div>
+        <!-- End of Main Content -->
+        <!-- Footer -->
+        <footer class="sticky-footer bg-white">
+            <div class="container my-auto">
+                <div class="copyright text-center my-auto">
+                    <span>Copyright &copy; SoftCore 2025</span>
+                </div>
+            </div>
+        </footer>
+        <!-- End of Footer -->
+    </div>
+    <!-- End of Content Wrapper -->
+</div>
+<!-- End of Page Wrapper -->
+<!-- Scroll to Top Button-->
+<a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+</a>
+<!-- Bootstrap core JavaScript-->
+
+{% include '/comm/adscript.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.13.14/dist/js/bootstrap-select.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.13.14/dist/css/bootstrap-select.min.css">
+</body>
+<script>
+    $('.selectpicker').selectpicker({
+        style: 'btn-inverse',
+        size: 40
+    });
+    $(document).ready(function () {
+        setinit();
+        toggleBuyInputs();
+    });
+
+    $("input[name='buy_setting']").change(function () {
+        toggleBuyInputs();
+    });
+
+    function toggleBuyInputs() {
+        if ($("#select_bamount").is(":checked")) {
+            $("#bamount").prop("disabled", false);
+            $("#kwamount").prop("disabled", true);
+        } else if ($("#select_kwamount").is(":checked")) {
+            $("#bamount").prop("disabled", true);
+            $("#kwamount").prop("disabled", false);
+        } else {
+            $("#bamount, #kwamount").prop("disabled", true);
+        }
+    }
+
+
+    function setBuyableAmount(amount) {
+        $('#buyable_amount').val(amount);
+    }
+
+
+    $('#coinn').change(function () {
+        var market = $(this).val();
+        toggleBuyInputs();
+        if (market) {
+            var upbitApi = $.getJSON('https://api.upbit.com/v1/ticker?markets=' + market);
+            var uno = $('#userNo').val();
+            var balanceApi = $.getJSON('/balancecrypto/' + uno + '/' + market);
+            $.when(upbitApi, balanceApi).done(function (upbitRes, balanceRes) {
+                var upbitData = upbitRes[0];
+                var balanceData = balanceRes[0];
+                if (upbitData && upbitData.length > 0) {
+                    var price = upbitData[0].trade_price;
+                    var krw = numberNoneCommas($("#krwbalance").text());
+                    if (price > 0) {
+                        var amount = Math.floor((krw / price) * 1000000) / 1000000;
+                        setBuyableAmount(amount);
+                        $("#selcprice").text(numberWithCommas(price));
+                    } else {
+                        setBuyableAmount("-");
+                    }
+                } else {
+                    setBuyableAmount("-");
+                }
+                var coinSymbol = market.split("-")[1]; // KRW-BTC → BTC
+                var coinBalance = balanceData[market] !== undefined ? balanceData[market] : "-";
+                var coinAvgP = balanceData["avgPrice"] !== undefined ? balanceData["avgPrice"] : "-";
+                let ratioText;
+                if (
+                    price !== undefined && price !== null &&
+                    coinAvgP !== undefined && coinAvgP !== null &&
+                    coinAvgP !== "-" && Number(coinAvgP) !== 0
+                ) {
+                    var ratio = ((price / Number(coinAvgP)) - 1) * 100;
+                    ratioText = ratio.toFixed(2) + "%";
+                } else {
+                    ratioText = "-";
+                }
+                $("#marginrate").text(ratioText);
+                $("#coinbalance").text(coinBalance);
+                $("#coinavgp").text(coinAvgP);
+            }).fail(function () {
+                setBuyableAmount("-");
+                $("#coinbalance").text("-");
+            });
+        } else {
+            setBuyableAmount("-");
+            $("#coinbalance").text("-");
+        }
+    });
+
+
+    function setinit() {
+    }
+
+    function numberWithCommas(x) {
+        return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    function numberNoneCommas(x) {
+        return x.toString().replace(/[\D\s\._\-]+/g, "");
+    }
+
+    function limitBamount(input) {
+        input.value = input.value.replace(/[^0-9.]/g, '');
+        var max = parseFloat(document.getElementById('buyable_amount').value, 10) || 0;
+        var val = parseFloat(input.value, 10) || 0;
+        if (val > max) input.value = max;
+    }
+
+    function limitBprice(input) {
+        let raw = input.value.replace(/[^0-9]/g, '');
+        let max = numberNoneCommas($("#krwbalance").text());
+        let val = parseInt(raw, 10) || 0;
+        if (val > max) val = max;
+        input.value = val === 0 ? '' : val; // 0이면 빈 값으로
+    }
+
+    function formatBpriceOnBlur(input) {
+        // 포커스 아웃 시: 최소값, 최대값 적용 + 콤마 적용
+        let raw = input.value.replace(/[^0-9]/g, '');
+        let max = numberNoneCommas($("#krwbalance").text());
+        let min = 5000;
+        let val = parseInt(raw, 10) || 0;
+        if (val > max) val = max;
+        if (val < min) val = min;
+        input.value = numberWithCommas(val);
+    }
+
+    function buycryptoRun() {
+        // 어떤 라디오가 선택됐는지 확인
+        const buySetting = document.querySelector('input[name="buy_setting"]:checked');
+        const selctypto = document.querySelector('#coinn').value;
+        if (!buySetting) {
+            alert("매수 방식을 선택하세요.");
+            return;
+        }
+        if (!selctypto) {
+            alert("매수대상 코인을 선택하세요.");
+            return;
+        }
+        if (buySetting.value === "amount") {
+            // 수량으로 구매
+            const amount = document.getElementById("bamount").value.replace(/,/g, '');
+            if (!amount || isNaN(amount) || Number(amount) <= 0) {
+                alert("구매 수량을 올바르게 입력하세요.");
+                return;
+            }
+            // 실제 구매 로직 (예시)
+            alert(`수량(${amount})으로 매수합니다.`);
+            uno = $("#userNo").val();
+            bamount = amount;
+            cprice = $("#selcprice").text().replace(/,/g, '');
+            coinName = selctypto;
+            const url = `/tradebuymarket/${uno}/${encodeURIComponent(coinName)}/${cprice}/${bamount}`;
+            fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+            })
+                .then(async response => {
+                    const text = await response.text();
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        throw new Error("서버에서 올바른 JSON이 오지 않았습니다:\n" + text);
+                    }
+                })
+                .then(data => {
+                    if (data.success) {
+                        alert("구매가 완료되었습니다!");
+                        setTimeout(() => {
+                            window.location.href = data.redirect;
+                        }, 1000);
+                    } else {
+                        alert("구매 실패: " + (data.message || "알 수 없는 오류"));
+                    }
+                })
+                .catch(err => {
+                    alert("서버와 통신 중 오류가 발생했습니다.\n" + err.message);
+                    console.error(err);
+                });
+        } else if (buySetting.value === "price") {
+            // 금액으로 구매
+            const price = document.getElementById("kwamount").value.replace(/,/g, '');
+            if (!price || isNaN(price) || Number(price) <= 0) {
+                alert("구매 금액을 올바르게 입력하세요.");
+                return;
+            }
+            // 실제 구매 로직 (예시)
+            alert(`금액(${price})으로 매수합니다.`);
+            uno = $("#userNo").val();
+            cprice = $("#selcprice").text().replace(/,/g, '');
+            bamount = price / cprice;
+            coinName = selctypto;
+            const url = `/tradebuymarket/${uno}/${encodeURIComponent(coinName)}/${cprice}/${bamount}`;
+            fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+            })
+                .then(async response => {
+                    const text = await response.text();
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        throw new Error("서버에서 올바른 JSON이 오지 않았습니다:\n" + text);
+                    }
+                })
+                .then(data => {
+                    if (data.success) {
+                        alert("구매가 완료되었습니다!");
+                        setTimeout(() => {
+                            window.location.href = data.redirect;
+                        }, 1000);
+                    } else {
+                        alert("구매 실패: " + (data.message || "알 수 없는 오류"));
+                    }
+                })
+                .catch(err => {
+                    alert("서버와 통신 중 오류가 발생했습니다.\n" + err.message);
+                    console.error(err);
+                });
+        }
+    }
+
+    function sellcryptoRun() {
+        // 어떤 라디오가 선택됐는지 확인
+        const selctypto = document.querySelector('#coinn').value;
+        if (!selctypto) {
+            alert("매도대상 코인을 선택하세요.");
+            return;
+        }
+        uno = $("#userNo").val();
+        brate = $("#sellrate option:selected").val();
+        alert(`비율(${brate})로 시장가 매도합니다.`);
+        cprice = $("#selcprice").text().replace(/,/g, '');
+        coinName = selctypto;
+        samount = $("#coinbalance").text().replace(/,/g, '');
+        svolume = samount * brate;
+        const url = `/tradesellmarket/${uno}/${encodeURIComponent(coinName)}/${cprice}/${svolume}`;
+        fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+        })
+            .then(async response => {
+                const text = await response.text();
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    throw new Error("서버에서 올바른 JSON이 오지 않았습니다:\n" + text);
+                }
+            })
+            .then(data => {
+                if (data.success) {
+                    alert("매도가 완료되었습니다!");
+                    setTimeout(() => {
+                        window.location.href = data.redirect;
+                    }, 1000);
+                } else {
+                    alert("구매 실패: " + (data.message || "알 수 없는 오류"));
+                }
+            })
+            .catch(err => {
+                alert("서버와 통신 중 오류가 발생했습니다.\n" + err.message);
+                console.error(err);
+            });
+    }
+
+
+</script>
+</html>

@@ -1,4 +1,6 @@
 import asyncio
+from typing import Dict
+
 import aiohttp
 from fastapi import FastAPI, Depends, Request, Form, Response, HTTPException, status, File, UploadFile
 from fastapi.encoders import jsonable_encoder
@@ -15,6 +17,9 @@ import dotenv
 import os
 import jinja2
 from datetime import datetime
+from aiTrader.vwmatrend import vwma_ma_cross_and_diff_noimage
+from aiTrader.cprice import all_cprice
+
 
 dotenv.load_dotenv()
 DATABASE_URL = os.getenv("dburl")
@@ -34,10 +39,8 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 공유 변수와 락 선언
-latest_price = None
-latest_time = None
-price_lock = asyncio.Lock()
+
+tradetrend: Dict = {}
 
 
 def format_currency(value):
@@ -73,16 +76,45 @@ async def get_krw_tickers():
             return krw_tickers
 
 
-async def async_daemon():
-    global latest_price, latest_time
+async def update_tradetrend():
+    global tradetrend
     while True:
-        price = await get_current_price("KRW-SUI")
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        async with price_lock:
-            latest_price = price
-            latest_time = now
-        print(f"asyncio(비동기) 데몬 실행: {price}({now})")
-        await asyncio.sleep(3)
+        async for db in get_db():
+            try:
+                query = text("SELECT coinName FROM polarisSets WHERE attrib not like :attxxx")
+                coinlist = await db.execute(query, {"attxxx": "%XXX%"})
+                coinlist = coinlist.fetchall()
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                timeframes = ['1d', '4h', '1h', '30m', '3m']
+                result: Dict[str, Dict[str, dict]] = {}
+
+                for coin in coinlist:
+                    try:
+                        result[coin[0]] = {}
+                        for tf in timeframes:
+                            try:
+                                df, reversal_points, reversal_distances, slope, angle_deg = vwma_ma_cross_and_diff_noimage(
+                                    coin[0], 3, 35, 150, tf)
+                                result[coin[0]][tf] = {
+                                    "slope": slope,
+                                    "angle_deg": angle_deg,
+                                    "reversal_count": len(reversal_points),
+                                    "reversal_distances": reversal_distances,
+                                }
+                            except Exception as e:
+                                print(f"코인트렌드 타임프레임 처리 중 오류 발생 {tf} for {coin[0]}: {str(e)}")
+                                continue
+                    except Exception as e:
+                        print(f"코인트렌드 처리 중 오류 발생 {coin[0]}: {str(e)}")
+                        continue
+
+                tradetrend = result
+                print(f"[{now}] tradetrend updated")
+            except Exception as e:
+                print(f"update_tradetrend 오류 발생: {str(e)}")
+            finally:
+                await db.close()
+        await asyncio.sleep(60)
 
 
 async def buy_crypto(request, uno, coinn, price, volum, db: AsyncSession = Depends(get_db)):
@@ -243,7 +275,7 @@ async def private_page(request: Request, user_session: int = Depends(require_log
 
 @app.on_event("startup")
 async def startup_event():
-    # asyncio.create_task(async_daemon())
+    asyncio.create_task(update_tradetrend())
     return True
 
 
@@ -262,16 +294,6 @@ async def initrade(request: Request, uno: int, user_session: int = Depends(requi
     usern = request.session.get("user_Name")
     return templates.TemplateResponse("trade/inittrade.html",
                                       {"request": request, "userNo": uno, "user_Name": usern})
-
-@app.get("/price")
-async def get_price():
-    async with price_lock:
-        price = latest_price
-        checked_at = latest_time
-    return {
-        "KRW-SUI": price,
-        "checked_at": checked_at
-    }
 
 
 @app.post("/loginchk")
@@ -468,3 +490,26 @@ async def gettradelog(request: Request, uno: int, coinn: str, user_session: int 
         return JSONResponse({"success": True, "data": mylogs})
     except Exception as e:
         print("Get Log Error !!", e)
+
+
+@app.get("/tradestatus/{uno}")
+async def tradestatus(request: Request, uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+    global coinlist
+    mycoins = None
+    if uno != user_session:
+        return RedirectResponse(url="/", status_code=303)
+    try:
+        mycoins = await get_current_balance(uno, db)
+        coinlist = await get_krw_tickers()
+    except Exception as e:
+        print("Init Error !!", e)
+    usern = request.session.get("user_Name")
+    setkey = request.session.get("setupKey")
+    return templates.TemplateResponse("trade/tradestat.html",
+                                      {"request": request, "userNo": uno, "user_Name": usern, "mycoins": mycoins[0],
+                                       "coinprice": mycoins[1], "setkey": setkey, "coinlist": coinlist})
+
+
+@app.get("/tradetrend")
+async def get_tradetrend():
+    return tradetrend
