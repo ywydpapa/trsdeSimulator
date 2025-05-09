@@ -519,4 +519,6 @@ async def get_tradetrend():
 
 @app.get("/tradesignal")
 async def get_tradesignal(request: Request):
-    return templates.TemplateResponse("trade/tradetrend.html", {"request": request})
+    usern = request.session.get("user_Name")
+    uno = request.session.get("user_No")
+    return templates.TemplateResponse("trade/tradetrend.html", {"request": request,"userNo": uno, "user_Name": usern,})
