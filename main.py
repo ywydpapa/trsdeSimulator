@@ -1,7 +1,7 @@
 import asyncio
 import time
 from typing import Dict
-
+import math
 import aiohttp
 from fastapi import FastAPI, Depends, Request, Form, Response, HTTPException, status, File, UploadFile
 from fastapi.encoders import jsonable_encoder
@@ -96,6 +96,11 @@ async def update_tradetrend():
                             try:
                                 df, reversal_points, reversal_distances, slope, angle_deg = vwma_ma_cross_and_diff_noimage(
                                     coin[0], 3, 35, 150, tf)
+                                if math.isinf(slope):
+                                    if slope > 0:
+                                        slope = 1e10
+                                    else:
+                                        slope = -1e10
                                 result[coin[0]][tf] = {
                                     "slope": slope,
                                     "angle_deg": angle_deg,
