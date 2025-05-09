@@ -82,7 +82,7 @@ async def update_tradetrend():
     while True:
         async for db in get_db():
             try:
-                query = text("SELECT coinName FROM polarisSets WHERE attrib not like :attxxx")
+                query = text("SELECT distinct (coinName) FROM polarisSets WHERE attrib not like :attxxx")
                 coinlist = await db.execute(query, {"attxxx": "%XXX%"})
                 coinlist = coinlist.fetchall()
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
