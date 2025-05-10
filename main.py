@@ -107,7 +107,7 @@ async def update_tradetrend():
                                     "reversal_count": len(reversal_points),
                                     "reversal_distances": reversal_distances,
                                 }
-                                time.sleep(0.2)
+                                time.sleep(0.15)
                             except Exception as e:
                                 print(f"코인트렌드 타임프레임 처리 중 오류 발생 {tf} for {coin[0]}: {str(e)}")
                                 continue
@@ -121,7 +121,7 @@ async def update_tradetrend():
                 print(f"update_tradetrend 오류 발생: {str(e)}")
             finally:
                 await db.close()
-        await asyncio.sleep(60)
+        await asyncio.sleep(90)
 
 
 async def buy_crypto(request, uno, coinn, price, volum, db: AsyncSession = Depends(get_db)):
