@@ -94,7 +94,7 @@ async def update_tradetrend():
                         result[coin[0]] = {}
                         for tf in timeframes:
                             try:
-                                df, reversal_points, reversal_distances, slope, angle_deg = vwma_ma_cross_and_diff_noimage(
+                                df, reversal_points, reversal_distances, slope, angle_deg, delta_x  =  vwma_ma_cross_and_diff_noimage(
                                     coin[0], 3, 35, 150, tf)
                                 if math.isinf(slope):
                                     if slope > 0:
@@ -106,6 +106,7 @@ async def update_tradetrend():
                                     "angle_deg": angle_deg,
                                     "reversal_count": len(reversal_points),
                                     "reversal_distances": reversal_distances,
+                                    "deltax": delta_x
                                 }
                                 time.sleep(0.15)
                             except Exception as e:

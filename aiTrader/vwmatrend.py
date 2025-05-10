@@ -147,6 +147,7 @@ def vwma_ma_cross_and_diff_noimage(
         candle_unit='1h'
 ):
     # 0. 캔들 단위 변환
+    global delta_x
     candle_map = {
         '1d': ('days', ''),
         '4h': ('minutes', 240),
@@ -244,9 +245,10 @@ def vwma_ma_cross_and_diff_noimage(
             angle_deg = 90.0
         print(f"마지막 반전({x1})~현재({x2}) VWMA 변화율 연결선 기울기: {slope:.4f} (%/분)")
         print(f"기울기의 각도: {angle_deg:.2f}°")
+        print(f"마지막 반전 시간 : {delta_x} 분전" )
     else:
         slope = None
         angle_deg = None
         print("반전 지점이 없습니다.")
 
-    return df, reversal_indices, reversal_distances, slope, angle_deg
+    return df, reversal_indices, reversal_distances, slope, angle_deg, delta_x
