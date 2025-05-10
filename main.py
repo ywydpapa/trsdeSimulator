@@ -21,7 +21,6 @@ from datetime import datetime
 from aiTrader.vwmatrend import vwma_ma_cross_and_diff_noimage
 from aiTrader.cprice import all_cprice
 
-
 dotenv.load_dotenv()
 DATABASE_URL = os.getenv("dburl")
 engine = create_async_engine(DATABASE_URL, echo=True)
@@ -39,7 +38,6 @@ app.add_middleware(
 )
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
 
 tradetrend: Dict = {}
 
@@ -94,7 +92,7 @@ async def update_tradetrend():
                         result[coin[0]] = {}
                         for tf in timeframes:
                             try:
-                                df, reversal_points, reversal_distances, slope, angle_deg, delta_x  =  vwma_ma_cross_and_diff_noimage(
+                                df, reversal_points, reversal_distances, slope, angle_deg, delta_x = vwma_ma_cross_and_diff_noimage(
                                     coin[0], 3, 35, 150, tf)
                                 if math.isinf(slope):
                                     if slope > 0:
@@ -228,7 +226,8 @@ async def get_current_balance(uno, db: AsyncSession = Depends(get_db)):
 async def get_logbook(request, uno, coinn, db: AsyncSession = Depends(get_db)):
     global mylogs
     try:
-        query = text("SELECT changeType, currency,unitPrice,inAmt,outAmt,remainAmt,regDate FROM trWallet where userNo = :uno and currency = :coinn and linkNo = :seckey order by regDate ")
+        query = text(
+            "SELECT changeType, currency,unitPrice,inAmt,outAmt,remainAmt,regDate FROM trWallet where userNo = :uno and currency = :coinn and linkNo = :seckey order by regDate ")
         result = await db.execute(query, {"uno": uno, "coinn": coinn, "seckey": request.session.get("setupKey")})
         rows = result.fetchall()
         columns = result.keys()
@@ -253,13 +252,13 @@ async def get_avg_price(uno, setkey, coinn, db: AsyncSession = Depends(get_db)):
         return None
 
 
-async def get_avg_by_coin(uno,setkey ,db: AsyncSession = Depends(get_db)):
+async def get_avg_by_coin(uno, setkey, db: AsyncSession = Depends(get_db)):
     try:
         query = text(
             "SELECT currency,IFNULL(누적매수금액 / NULLIF(누적매수수량,0), 0) AS avg_price FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY currency ORDER BY regDate DESC, linkNo DESC) AS rn,SUM(CASE WHEN changeType LIKE 'BUY%' THEN unitPrice * inAmt ELSE 0 END) OVER (PARTITION BY currency, session_id ORDER BY regDate, linkNo ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS 누적매수금액, SUM(CASE WHEN changeType LIKE 'BUY%' THEN inAmt ELSE 0 END)                OVER (PARTITION BY currency, session_id ORDER BY regDate, linkNo ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS 누적매수수량    FROM (        SELECT *,               SUM(is_zero) OVER (PARTITION BY currency ORDER BY regDate, linkNo ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS session_id FROM ( SELECT *, CASE WHEN remainAmt = 0 THEN 1 ELSE 0 END AS is_zero FROM trWallet WHERE userNo = :uno and linkNo = :linkno ORDER BY regDate, linkNo ) t1 ) t2) t3 WHERE rn = 1")
         result = await db.execute(query, {"uno": uno, "linkno": setkey})
         rows = result.fetchall()
-        return {row.currency: round(float(row.avg_price),2) for row in rows}
+        return {row.currency: round(float(row.avg_price), 2) for row in rows}
     except Exception as e:
         print(e)
         return {}
@@ -296,7 +295,8 @@ async def login_form(request: Request):
 
 
 @app.get("/initTrade/{uno}")
-async def initrade(request: Request, uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def initrade(request: Request, uno: int, user_session: int = Depends(require_login),
+                   db: AsyncSession = Depends(get_db)):
     if uno != user_session:
         return RedirectResponse(url="/", status_code=303)
     usern = request.session.get("user_Name")
@@ -387,7 +387,8 @@ async def my_balance(request: Request, uno: int, user_session: int = Depends(req
         mycoins = None
     usern = request.session.get("user_Name")
     return templates.TemplateResponse("wallet/mywallet.html",
-                                      {"request": request, "userNo": uno, "user_Name": usern, "mycoins": mycoins[0],"myavgp":myavgp,
+                                      {"request": request, "userNo": uno, "user_Name": usern, "mycoins": mycoins[0],
+                                       "myavgp": myavgp,
                                        "coinprice": mycoins[1]})
 
 
@@ -403,7 +404,7 @@ async def my_balance(request: Request, uno: int, coinn: str, user_session: int =
         for coin in mycoins[0]:
             if coin[5] == coinn:
                 mycoin[coin[5]] = coin[9]
-                mycoin["avgPrice"] = myavgp.get(coin[5],0)
+                mycoin["avgPrice"] = myavgp.get(coin[5], 0)
     except Exception as e:
         print("Init Error !!", e)
         mycoin = None
@@ -455,7 +456,8 @@ async def tradebuymarket(
 
 
 @app.post("/tradesellmarket/{uno}/{coinn}/{cprice}/{volum}")
-async def tradesellmarket(request: Request, uno: int, coinn: str, cprice: float, volum: float, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def tradesellmarket(request: Request, uno: int, coinn: str, cprice: float, volum: float,
+                          user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
     if uno != user_session:
         return JSONResponse({"success": False, "message": "권한이 없습니다.", "redirect": "/"})
     try:
@@ -472,7 +474,8 @@ async def tradesellmarket(request: Request, uno: int, coinn: str, cprice: float,
 
 
 @app.get("/tradelogbook/{uno}")
-async def tradelogbook(request: Request, uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def tradelogbook(request: Request, uno: int, user_session: int = Depends(require_login),
+                       db: AsyncSession = Depends(get_db)):
     mycoins = None
     if uno != user_session:
         return RedirectResponse(url="/", status_code=303)
@@ -488,7 +491,8 @@ async def tradelogbook(request: Request, uno: int, user_session: int = Depends(r
 
 
 @app.get("/gettradelog/{uno}/{coinn}")
-async def gettradelog(request: Request, uno: int, coinn: str, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def gettradelog(request: Request, uno: int, coinn: str, user_session: int = Depends(require_login),
+                      db: AsyncSession = Depends(get_db)):
     mylogs = None
     if uno != user_session:
         return RedirectResponse(url="/", status_code=303)
@@ -501,7 +505,8 @@ async def gettradelog(request: Request, uno: int, coinn: str, user_session: int 
 
 
 @app.get("/tradestatus/{uno}")
-async def tradestatus(request: Request, uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def tradestatus(request: Request, uno: int, user_session: int = Depends(require_login),
+                      db: AsyncSession = Depends(get_db)):
     global coinlist
     mycoins = None
     if uno != user_session:
@@ -527,4 +532,66 @@ async def get_tradetrend():
 async def get_tradesignal(request: Request):
     usern = request.session.get("user_Name")
     uno = request.session.get("user_No")
-    return templates.TemplateResponse("trade/tradetrend.html", {"request": request,"userNo": uno, "user_Name": usern,})
+    return templates.TemplateResponse("trade/tradetrend.html",
+                                      {"request": request, "userNo": uno, "user_Name": usern, })
+
+
+def get_signal_class(slope: float) -> dict:
+    if slope < -44.9:
+        return {'cls': 'black', 'label': '⚫'}
+    elif slope < 0:
+        return {'cls': 'red', 'label': '🔴'}
+    elif slope < 0.2:
+        return {'cls': 'orange', 'label': '🟠'}
+    else:
+        return {'cls': 'green', 'label': '🟢'}
+
+
+def make_signal_bulbs(tfs: dict) -> str:
+    bulbs = ""
+    tf_order = ['1d', '4h', '1h', '30m', '3m']
+    tf_label = {'1d': '1D', '4h': '4H', '1h': '1H', '30m': '30', '3m': '3'}
+    for tf in tf_order:
+        if tf in tfs:
+            slope = tfs[tf]['slope']
+            sig = get_signal_class(slope)
+            bulbs += f'<span class="signal-bulb {sig["cls"]}" title="{tf}"></span>'
+    return bulbs
+
+
+@app.get("/tsignal/{coinn}", response_class=HTMLResponse)
+async def tsignal(coinn: str):
+    coin = coinn.upper()
+    if coin not in tradetrend:
+        raise HTTPException(status_code=404, detail="Coin not found")
+    bulbs_html = make_signal_bulbs(tradetrend[coin])
+    style = """
+    <style>
+    .signal-bulb {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  margin: 0 2px;
+  text-align: center;
+  line-height: 15px;   /* 폰트와 동일하게 */
+  font-weight: bold;
+  font-size: 15px;     /* 폰트와 동일하게 */
+  vertical-align: middle;
+  position: relative;
+}
+.signal-bulb .tf-label {
+  display: block;
+  font-size: 9px;
+  color: #333;
+  font-weight: normal;
+  line-height: 12px;
+  margin-top: -4px;
+}
+.signal-bulb.black { background: #222; color: #fff;}
+.signal-bulb.red { background: #e7505a; }
+.signal-bulb.orange { background: #f7ca18; color: #333;}
+.signal-bulb.green { background: #26c281; }
+</style>
+    """
+    return style + bulbs_html

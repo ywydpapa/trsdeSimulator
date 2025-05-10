@@ -2,6 +2,15 @@
 <html lang="en">
 <head>
     {% include '/comm/adheader.html' %}
+ <style>
+    #dataTable tr td {
+  height: 44px;
+  padding-top: 0;
+  padding-bottom: 0;
+  vertical-align: middle;
+  line-height: 1.2;
+}
+ </style>
 </head>
 <body id="page-top">
 <!-- Page Wrapper -->
@@ -40,10 +49,15 @@
                                 <tbody>
                                 {% for coin in mycoins %}
                                 <tr>
-                                    <td class="coins" style="text-align: center"> {{ coin[5] }}</td>
+                                    <td class="coins" style="text-align: center">
+                                        {{ coin[5] }}
+                                        <div class="tsignal" data-coin="{{ coin[5] }}"></div>
+                                    </td>
                                     <td class="vola" style="text-align: right"> {{ coin[9] }}</td>
                                     <td class="volb" style="text-align: right">0</td>
-                                    <td class="aprice" style="text-align: right"> {% if coin[5] == 'KRW' %}1{% else %}{{ myavgp[coin[5]] }}{% endif %}</td>
+                                    <td class="aprice" style="text-align: right"> {% if coin[5] == 'KRW' %}1{% else %}{{
+                                        myavgp[coin[5]] }}{% endif %}
+                                    </td>
                                     <td class="cprice" style="text-align: right">
                                         {{ coinprice[coin[5]] }}
                                     </td>
@@ -53,10 +67,12 @@
                                     {% if coin[5]!="KRW" %}
                                     <td style="display: flex; justify-content: space-between;">
                                         <button class="btn form-control btn-primary" style="width: 48%;"
-                                                onclick="sellcoin( {{ userNo }},'{{ coin[5] }}',{{ coinprice[coin[5]] }},{{ coin[9]}})"> 매도
+                                                onclick="sellcoin( {{ userNo }},'{{ coin[5] }}',{{ coinprice[coin[5]] }},{{ coin[9]}})">
+                                            매도
                                         </button>
                                         <button class="btn form-control btn-danger" style="width: 48%;"
-                                                onclick="buycoin( {{ userNo }},'{{ coin[5] }}',{{ coinprice[coin[5]] }})"> 매수
+                                                onclick="buycoin( {{ userNo }},'{{ coin[5] }}',{{ coinprice[coin[5]] }})">
+                                            매수
                                         </button>
                                     </td>
                                     {% elif coin[5] == "KRW" %}
@@ -124,6 +140,7 @@
 <script>
     $(document).ready(function () {
         calcvalue();
+        loadTSignals();
     });
 
 
@@ -141,10 +158,11 @@
                     window.location.href = `/balance/${uno}`;
                 }
             });
-        }}
+        }
+    }
 
 
-        function buycoin(uno, coinn, cprice) {
+    function buycoin(uno, coinn, cprice) {
         if (confirm("본 코인을 시장가로 매수하시겠습니까?")) {
             let costkrw = numberNoneCommas($("#buyamt").val());
             let svolume = costkrw / cprice;
@@ -158,7 +176,8 @@
                     window.location.href = `/balance/${uno}`;
                 }
             });
-        }}
+        }
+    }
 
 
     function numberWithCommas(x) {
@@ -217,6 +236,23 @@
         $("#wonsum").html(numberWithCommas(wonsum));
         $("#estsum").html(numberWithCommas(estsum));
     }
+    function loadTSignals() {
+    $(".tsignal").each(function () {
+        var coin = $(this).data("coin");
+        if (coin === "KRW") return; // KRW는 신호등 필요 없음
+        var $el = $(this);
+        $.ajax({
+            url: "/tsignal/" + coin.toLowerCase(),
+            method: "GET",
+            success: function (data) {
+                $el.html(data);
+            },
+            error: function () {
+                $el.html('<span style="color:gray;font-size:11px;">신호없음</span>');
+            }
+        });
+    });
+}
 </script>
 </body>
 </html>
