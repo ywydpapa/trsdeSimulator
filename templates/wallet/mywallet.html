@@ -109,6 +109,7 @@
                                 </tr>
                                 </tbody>
                             </table>
+                            <div>비트코인 현재가: <span id="coinprice"></span></div>
                         </div>
                     </div>
                 </div>
@@ -253,6 +254,19 @@
         });
     });
 }
+</script>
+<script>
+  const market = "KRW-BTC"; // 비트코인
+  const ws = new WebSocket(`ws://${location.host}/ws/coinprice/${market}`);
+
+  ws.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    document.getElementById("coinprice").innerText = numberWithCommas(data.current_price);
+  };
+
+  ws.onclose = function() {
+    console.log("WebSocket closed");
+  };
 </script>
 </body>
 </html>

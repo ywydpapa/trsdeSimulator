@@ -16,10 +16,15 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 import dotenv
 import os
+import requests
 import jinja2
 from datetime import datetime
 from aiTrader.vwmatrend import vwma_ma_cross_and_diff_noimage
 from aiTrader.cprice import all_cprice
+from fastapi import WebSocket, WebSocketDisconnect
+import httpx
+import websockets
+import json
 
 dotenv.load_dotenv()
 DATABASE_URL = os.getenv("dburl")
@@ -57,12 +62,18 @@ async def get_db():
         yield session
 
 
-async def get_current_price(ticker):
-    url = f"https://api.upbit.com/v1/ticker?markets={ticker}"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            data = await resp.json()
-            return data[0]["trade_price"] if data else None
+async def get_current_price():
+    server_url = "https://api.upbit.com"
+    params = {"quote_currencies": "KRW"}
+    res = requests.get(server_url + "/v1/ticker/all", params=params)
+    data = res.json()
+    result = []
+    for item in data:
+        market = item.get("market")
+        trade_price = item.get("trade_price")
+        if market and trade_price:
+            result.append({"market": market, "trade_price": trade_price})
+    return result
 
 
 async def get_krw_tickers():
@@ -70,7 +81,6 @@ async def get_krw_tickers():
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
             data = await resp.json()
-            # KRW-로 시작하는 마켓만 필터링
             krw_tickers = [item for item in data if item['market'].startswith('KRW-')]
             return krw_tickers
 
@@ -84,7 +94,7 @@ async def update_tradetrend():
                 coinlist = await db.execute(query, {"attxxx": "%XXX%"})
                 coinlist = coinlist.fetchall()
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                timeframes = ['1d', '4h', '1h', '30m', '3m']
+                timeframes = ['1d', '4h', '1h', '30m', '3m', '1m']
                 result: Dict[str, Dict[str, dict]] = {}
 
                 for coin in coinlist:
@@ -121,6 +131,31 @@ async def update_tradetrend():
             finally:
                 await db.close()
         await asyncio.sleep(90)
+
+
+def get_signal_class(slope: float) -> dict:
+    if slope < -44.9:
+        return {'cls': 'black', 'label': '⚫'}
+    elif slope > 45:
+        return {'cls': 'black', 'label': '⚫'}
+    elif slope < 0:
+        return {'cls': 'red', 'label': '🔴'}
+    elif slope < 0.2:
+        return {'cls': 'orange', 'label': '🟠'}
+    else:
+        return {'cls': 'green', 'label': '🟢'}
+
+
+def make_signal_bulbs(tfs: dict) -> str:
+    bulbs = ""
+    tf_order = ['1d', '4h', '1h', '30m', '3m', '1m']
+    tf_label = {'1d': '1D', '4h': '4H', '1h': '1H', '30m': '30', '3m': '3', '1m': '1'}
+    for tf in tf_order:
+        if tf in tfs:
+            slope = tfs[tf]['slope']
+            sig = get_signal_class(slope)
+            bulbs += f'<span class="signal-bulb {sig["cls"]}" title="{tf}"></span>'
+    return bulbs
 
 
 async def buy_crypto(request, uno, coinn, price, volum, db: AsyncSession = Depends(get_db)):
@@ -211,9 +246,11 @@ async def get_current_balance(uno, db: AsyncSession = Depends(get_db)):
         result = await db.execute(query, {"uno": uno, "attxx": "%XXX%"})
         mycoins = result.fetchall()
         coinprice = {}
+        gcprice = await get_current_price()
+        price_dict = {item['market']: item['trade_price'] for item in gcprice}
         for coin in mycoins:
             if coin[5] != "KRW":
-                cprice = await get_current_price(coin[5])
+                cprice = price_dict.get(coin[5], None)
             else:
                 cprice = 1.0
             coinprice[coin[5]] = cprice
@@ -536,28 +573,6 @@ async def get_tradesignal(request: Request):
                                       {"request": request, "userNo": uno, "user_Name": usern, })
 
 
-def get_signal_class(slope: float) -> dict:
-    if slope < -44.9:
-        return {'cls': 'black', 'label': '⚫'}
-    elif slope < 0:
-        return {'cls': 'red', 'label': '🔴'}
-    elif slope < 0.2:
-        return {'cls': 'orange', 'label': '🟠'}
-    else:
-        return {'cls': 'green', 'label': '🟢'}
-
-
-def make_signal_bulbs(tfs: dict) -> str:
-    bulbs = ""
-    tf_order = ['1d', '4h', '1h', '30m', '3m']
-    tf_label = {'1d': '1D', '4h': '4H', '1h': '1H', '30m': '30', '3m': '3'}
-    for tf in tf_order:
-        if tf in tfs:
-            slope = tfs[tf]['slope']
-            sig = get_signal_class(slope)
-            bulbs += f'<span class="signal-bulb {sig["cls"]}" title="{tf}"></span>'
-    return bulbs
-
 
 @app.get("/tsignal/{coinn}", response_class=HTMLResponse)
 async def tsignal(coinn: str):
@@ -568,30 +583,58 @@ async def tsignal(coinn: str):
     style = """
     <style>
     .signal-bulb {
-  display: inline-block;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  margin: 0 2px;
-  text-align: center;
-  line-height: 15px;   /* 폰트와 동일하게 */
-  font-weight: bold;
-  font-size: 15px;     /* 폰트와 동일하게 */
-  vertical-align: middle;
-  position: relative;
-}
-.signal-bulb .tf-label {
-  display: block;
-  font-size: 9px;
-  color: #333;
-  font-weight: normal;
-  line-height: 12px;
-  margin-top: -4px;
-}
-.signal-bulb.black { background: #222; color: #fff;}
-.signal-bulb.red { background: #e7505a; }
-.signal-bulb.orange { background: #f7ca18; color: #333;}
-.signal-bulb.green { background: #26c281; }
-</style>
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    margin: 0 2px;
+    text-align: center;
+    line-height: 15px;   /* 폰트와 동일하게 */
+    font-weight: bold;
+    font-size: 15px;     /* 폰트와 동일하게 */
+    vertical-align: middle;
+    position: relative;
+    }
+    .signal-bulb .tf-label {
+    display: block;
+    font-size: 9px;
+    color: #333;
+    font-weight: normal;
+    line-height: 12px;
+    margin-top: -4px;
+    }
+    .signal-bulb.black { background: #222; color: #fff;}
+    .signal-bulb.red { background: #e7505a; }
+    .signal-bulb.orange { background: #f7ca18; color: #333;}
+    .signal-bulb.green { background: #26c281; }
+    </style>
     """
     return style + bulbs_html
+
+
+@app.websocket("/ws/coinprice/{coinn}")
+async def coin_price_ws(websocket: WebSocket, coinn: str, db: AsyncSession = Depends(get_db)):
+    await websocket.accept()
+    try:
+        async for current_price in upbit_ws_price_stream(coinn):
+            await websocket.send_json({"coinn": coinn, "current_price": current_price})
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected: coin {coinn}")
+    except Exception as e:
+        print("WebSocket Error:", e)
+
+async def upbit_ws_price_stream(market: str):
+    uri = "wss://api.upbit.com/websocket/v1"
+    subscribe_data = [{
+        "ticket": "test",
+    }, {
+        "type": "ticker",
+        "codes": [market],
+        "isOnlyRealtime": True
+    }]
+    async with websockets.connect(uri, ping_interval=60) as websocket:
+        await websocket.send(json.dumps(subscribe_data))
+        while True:
+            data = await websocket.recv()
+            parsed = json.loads(data)
+            yield parsed['trade_price']  # 실시간 체결가
