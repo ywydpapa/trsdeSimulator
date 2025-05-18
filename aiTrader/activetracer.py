@@ -6,6 +6,26 @@ from scipy.signal import find_peaks
 import time
 
 
+def compute_stoch_rsi(series, window=14, smooth_k=3, smooth_d=3):
+    # 1. RSI 먼저 계산
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+
+    # 2. StochRSI 계산
+    min_rsi = rsi.rolling(window).min()
+    max_rsi = rsi.rolling(window).max()
+    stoch_rsi = (rsi - min_rsi) / (max_rsi - min_rsi)
+
+    # 3. %K, %D smoothing
+    stoch_k = stoch_rsi.rolling(smooth_k).mean()
+    stoch_d = stoch_k.rolling(smooth_d).mean()
+
+    return stoch_rsi, stoch_k, stoch_d
+
+
 def peak_trade(
         ticker='KRW-BTC',
         short_window=3,
@@ -57,6 +77,21 @@ def peak_trade(
     df[f'MA_{short_window}'] = df['trade_price'].rolling(window=short_window).mean()
     df[f'MA_{long_window}'] = df['trade_price'].rolling(window=long_window).mean()
 
+    # === 상승/하강봉 평균 변화율 계산 추가 ===
+    df['prev_price'] = df['trade_price'].shift(1)
+    df['change'] = df['trade_price'] - df['prev_price']
+    df['rate'] = (df['trade_price'] - df['prev_price']) / df['prev_price']
+
+    up_candles = df[df['change'] > 0]
+    down_candles = df[df['change'] < 0]
+
+    avg_up_rate = up_candles['rate'].mean() * 100  # %
+    avg_down_rate = down_candles['rate'].mean() * 100  # %
+
+    print(f"상승봉 평균 상승률: {avg_up_rate:.3f}%")
+    print(f"하강봉 평균 하강률: {avg_down_rate:.3f}%")
+    # =====================================
+
     # 3. 크로스 포인트 계산
     golden_cross = df[
         (df[f'VWMA_{short_window}'] > df[f'VWMA_{long_window}']) &
@@ -66,9 +101,15 @@ def peak_trade(
         (df[f'VWMA_{short_window}'] < df[f'VWMA_{long_window}']) &
         (df[f'VWMA_{short_window}'].shift(1) >= df[f'VWMA_{long_window}'].shift(1))
         ]
+    # RSI 추가
+    stoch_rsi, stoch_k, stoch_d = compute_stoch_rsi(df['trade_price'], window=14, smooth_k=3, smooth_d=3)
+    df['stoch_rsi'] = stoch_rsi
+    df['stoch_k'] = stoch_k
+    df['stoch_d'] = stoch_d
 
-    # 그래프 그리기
-    fig, ax1 = plt.subplots(1, 1, figsize=(24, 8))
+    # --- 그래프 그리기 ---
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(24, 12), sharex=True, gridspec_kw={'height_ratios': [3, 1]})
+
     valid_idx = df.index[df[f'VWMA_{long_window}'].notna()]
     ax1.plot(df['trade_price'], label='Price')
     ax1.plot(valid_idx, df.loc[valid_idx, f'VWMA_{short_window}'], label=f'VWMA {short_window}', color='blue')
@@ -81,13 +122,24 @@ def peak_trade(
     ax1.set_ylabel('Price')
     ax1.grid(True)
     ax1.legend()
+
+    # STOCH RSI
+    ax2.plot(df.index, df['stoch_k'], label='StochRSI %K', color='purple')
+    ax2.plot(df.index, df['stoch_d'], label='StochRSI %D', color='magenta', linestyle='--')
+    ax2.axhline(0.8, color='red', linestyle=':', alpha=0.5)
+    ax2.axhline(0.2, color='blue', linestyle=':', alpha=0.5)
+    ax2.set_ylabel('StochRSI')
+    ax2.set_ylim(-0.05, 1.05)
+    ax2.legend()
+    ax2.grid(True)
+
     plt.tight_layout()
     plt.show()
 
     # 최근 크로스 판단
     recent = df.tail(5)
-    print("최근 5개 캔들")
-    print(recent[['trade_price', f'VWMA_{short_window}', f'VWMA_{long_window}']])
+    # print("최근 5개 캔들")
+    # print(recent[['trade_price', f'VWMA_{short_window}', f'VWMA_{long_window}']])
 
     # 최근 크로스 판단
     now = df.index[-1]
@@ -181,6 +233,20 @@ def analyze_cross_with_peak_and_vwma(
     now_vwmalong = vwmalong.iloc[-1]
     vwma_gap = abs(now_price - now_vwmalong) / now_vwmalong
 
+    # 꼭지점 찾기
+    peak_indices, _ = find_peaks(prices)
+    valley_indices, _ = find_peaks(-prices)
+
+    if len(peak_indices) > 0:
+        last_peak_time = prices.index[peak_indices[-1]]
+        last_peak_value = prices.iloc[peak_indices[-1]]
+        print(f"마지막 최고점: {last_peak_time} / {last_peak_value}")
+
+    if len(valley_indices) > 0:
+        last_valley_time = prices.index[valley_indices[-1]]
+        last_valley_value = prices.iloc[valley_indices[-1]]
+        print(f"마지막 최저점: {last_valley_time} / {last_valley_value}")
+
     # 최고점, 최저점 및 신호 판단
     max_price = prices.max()
     max_time = prices.idxmax()
@@ -215,5 +281,15 @@ def analyze_cross_with_peak_and_vwma(
 
 # 사용 예시
 while True:
-    peak_trade('KRW-TRUMP', 1, 45, 120, '1m')
-    time.sleep(30)
+    ticker = 'KRW-XRP'
+    peak_trade(ticker, 1, 45, 200, '1m')
+    print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    peak_trade(ticker, 1, 45, 200, '3m')
+    print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    peak_trade(ticker, 1, 45, 200, '15m')
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    peak_trade(ticker, 1, 45, 200, '30m')
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    peak_trade(ticker, 1, 45, 200, '1h')
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    time.sleep(45)
