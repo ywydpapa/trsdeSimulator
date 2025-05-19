@@ -260,6 +260,29 @@ async def get_current_balance(uno, db: AsyncSession = Depends(get_db)):
         return mycoins, coinprice
 
 
+async def get_trsetups(uno, db: AsyncSession = Depends(get_db)):
+    try:
+        query = text("SELECT * FROM polarisSets where userNo = :uno and attrib not like :attxx")
+        result = await db.execute(query, {"uno": uno, "attxx": "%XXX%"})
+        mysetups = result.fetchall()
+        mysets = []
+        for setup in mysetups:
+            mysets.append({
+                "setupNo": setup[0],
+                "coinName": setup[2],
+                "stepAmt": setup[3],
+                "tradeType": setup[4],
+                "amxAmt": setup[5],
+                "useYN": setup[6],
+            })
+    except Exception as e:
+        print("Get Setup Error!!", e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    finally:
+        print(mysets)
+    return mysets
+
+
 async def get_logbook(request, uno, coinn, db: AsyncSession = Depends(get_db)):
     global mylogs
     try:
@@ -641,18 +664,60 @@ async def upbit_ws_price_stream(market: str):
 
 
 @app.get("/tradesetup/{uno}")
-async def get_tradesetup(request: Request, uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+async def get_tradesetup(request: Request, uno: int, user_session: int = Depends(require_login),
+                         db: AsyncSession = Depends(get_db)):
     global coinlist
-    mycoins = None
     if uno != user_session:
         return RedirectResponse(url="/", status_code=303)
     try:
+        setups = await get_trsetups(uno, db)
         mycoins = await get_current_balance(uno, db)
         coinlist = await get_krw_tickers()
+        usern = request.session.get("user_Name")
+        setkey = request.session.get("setupKey")
+
+        return templates.TemplateResponse("trade/tradesetup.html", {
+            "request": request,
+            "userNo": uno,
+            "user_Name": usern,
+            "mycoins": mycoins[0],
+            "coinprice": mycoins[1],
+            "setkey": setkey,
+            "coinlist": coinlist,
+            "setups": setups
+        })
     except Exception as e:
         print("Init Error !!", e)
-    usern = request.session.get("user_Name")
-    setkey = request.session.get("setupKey")
-    return templates.TemplateResponse("trade/tradesetup.html",
-                                      {"request": request, "userNo": uno, "user_Name": usern, "mycoins": mycoins[0],
-                                       "coinprice": mycoins[1], "setkey": setkey, "coinlist": coinlist})
+        return templates.TemplateResponse(
+            "trade/tradesetup.html",
+            {
+                "request": request,
+                "userNo": uno,
+                "user_Name": usern,
+                "mycoins": [],
+                "coinprice": {},
+                "setkey": setkey,
+                "coinlist": [],
+                "setups": []
+            })
+
+@app.post("/setuponoff/{setupno}/{onoff}/{uno}")
+async def update_setuponoff(uno: int, setupno: int, onoff: str, user_session: int = Depends(require_login),
+                            db: AsyncSession = Depends(get_db)):
+    if uno != user_session:
+        return RedirectResponse(url="/", status_code=303)
+    query = text("UPDATE polarisSets SET useYN = :onoff WHERE setupNo = :setupno")
+    await db.execute(query, {"onoff": onoff, "setupno": setupno})
+    await db.commit()
+    return RedirectResponse(url=f"/tradesetup/{uno}", status_code=303)
+
+@app.post("/setupdel/{setupno}/{uno}")
+async def update_setupdel(uno: int, setupno: int, user_session: int = Depends(require_login),
+                            db: AsyncSession = Depends(get_db)):
+    if uno != user_session:
+        return RedirectResponse(url="/", status_code=303)
+    query = text(f"UPDATE polarisSets set attrib = :attx WHERE setupNo = {setupno}")
+    await db.execute(query, {"attx": "XXXUPXXXUP"})
+    await db.commit()
+    return RedirectResponse(url=f"/tradesetup/{uno}", status_code=303)
+

@@ -61,8 +61,9 @@
                                             <label for="setupamt">설정금액</label>
                                         </span>
                                         <span style="flex:1; display:flex; justify-content:flex-end;">
-                                            <input type="text" id="setupamt" name="setupamt" class="form-control" style="width:auto;text-align: right;"
-                                            oninput="limitBprice(this)" onblur="formatBpriceOnBlur(this)">
+                                            <input type="text" id="setupamt" name="setupamt" class="form-control"
+                                                   style="width:auto;text-align: right;"
+                                                   oninput="limitBprice(this)" onblur="formatBpriceOnBlur(this)">
                                         </span>
                                     </td>
 
@@ -80,20 +81,50 @@
                         <div class="table-responsive">
                             <table class="table table-bordered" id="listTable" width="100%" cellspacing="0">
                                 <colgroup>
-                                    <col width="25%"/>
-                                    <col width="25%"/>
-                                    <col width="25%"/>
-                                    <col width="25%"/>
+                                    <col width="20%"/>
+                                    <col width="10%"/>
+                                    <col width="10%"/>
+                                    <col width="20%"/>
+                                    <col width="20%"/>
+                                    <col width="20%"/>
                                 </colgroup>
-                                <thead>
+                                <thead style="text-align: center">
                                 <tr>
-                                    <td style="text-align: center"><h5></h5></td>
-                                    <td></td>
-                                    <td style="text-align: center" id=""></td>
-                                    <td></td>
+                                    <td style="text-align: center">코인명</td>
+                                    <td>설정금액</td>
+                                    <td style="text-align: center" id="">거래종류</td>
+                                    <td>최대설정금액</td>
+                                    <td>사용여부</td>
+                                    <td>관리기능</td>
                                 </tr>
                                 </thead>
                                 <tbody>
+                                {% if setups %}
+                                {% for setup in setups %}
+                                <tr>
+                                    <td style="text-align: center">{{ setup.coinName }}</td>
+                                    <td style="text-align: right">{{ setup.stepAmt }}</td>
+                                    <td style="text-align: center">{{ setup.tradeType }}</td>
+                                    <td style="text-align: right">{{ setup.maxAmt }}</td>
+                                    <td style="text-align: center">
+                                        <input type="checkbox"
+                                               name="useYN"
+                                               id="useYN{{ setup.setupNo }}"
+                                               value="Y"
+                                               {% if setup.useYN== 'Y' %}checked{% endif %}
+                                        onchange="changeYN({{ setup.setupNo }}, this.checked)">
+                                    </td>
+                                    <td style="text-align: center">
+                                        <button class="form-control btn btn-primary"
+                                                id="removeBtn{{ setup.setupNo }}"
+                                                data-setupno="{{ setup.setupNo }}"
+                                                onclick="removeSetup({{ setup.setupNo }}, {{ userNo }})"
+                                        >설정 지우기
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% endif %}
                                 </tbody>
                             </table>
                         </div>
@@ -135,12 +166,76 @@
 
     $(document).ready(function () {
         setinit();
+        $("input[type=checkbox][name=useYN]").each(function() {
+        const setupNo = $(this).attr("id").replace("useYN", "");
+        const btn = document.getElementById('removeBtn' + setupNo);
+        if (btn) btn.disabled = this.checked;
+    });
     });
 
 
     function setBuyableAmount(amount) {
         $('#buyable_amount').val(amount);
     }
+
+    async function changeYN(setupNo, isChecked) {
+        const useYN = isChecked ? 'Y' : 'N';
+
+        // 버튼 활성/비활성 처리
+        const btn = document.getElementById('removeBtn' + setupNo);
+        if (btn) btn.disabled = isChecked; // 체크되어 있으면 비활성화
+
+        try {
+            const response = await fetch(`/setuponoff/${setupNo}/${useYN}/{{ userNo }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            if (!response.ok) {
+                alert('상태 변경에 실패했습니다.');
+            }
+        } catch (error) {
+            alert('오류가 발생했습니다.');
+            console.error(error);
+        }
+    }
+
+    async function removeSetup(setupNo, uno) {
+        // 서버로 POST 요청 보내기
+        try {
+            const response = await fetch(`/setupdel/${setupNo}/${uno}`, {
+                method: 'POST',
+                headers: {
+                    // 필요하다면 CSRF 토큰 등 추가
+                    'Content-Type': 'application/json'
+                }
+            });
+            // 서버가 303 리다이렉트 응답을 보낼 경우 fetch는 자동으로 따라가지 않습니다.
+            // 따라서 프론트엔드에서 직접 이동시켜줘야 함
+            if (response.redirected) {
+                window.location.href = response.url;
+            } else if (response.status === 303) {
+                // 일부 브라우저에서는 redirected가 false일 수 있으므로 fallback
+                const redirectUrl = response.headers.get('Location');
+                if (redirectUrl) {
+                    window.location.href = redirectUrl;
+                } else {
+                    // 성공 후 현재 페이지 새로고침 (혹은 필요에 따라 동작)
+                    window.location.reload();
+                }
+            } else if (response.ok) {
+                window.location.reload();
+            } else {
+                alert('설정 삭제에 실패했습니다.');
+            }
+        } catch (error) {
+            alert('오류가 발생했습니다.');
+            console.error(error);
+        }
+    }
+
 
     $('#coinn').change(function () {
         var market = $(this).val();
@@ -219,7 +314,7 @@
     }
 
     function formatBpriceOnBlur(input) {
-        // 포커스 아웃 시: 최소값, 최대값 적용 + 콤마 적용
+// 포커스 아웃 시: 최소값, 최대값 적용 + 콤마 적용
         let raw = input.value.replace(/[^0-9]/g, '');
         let max = numberNoneCommas($("#krwbalance").text());
         let min = 5000;
