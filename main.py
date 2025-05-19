@@ -319,7 +319,7 @@ async def private_page(request: Request, user_session: int = Depends(require_log
 
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(update_tradetrend())
+    # asyncio.create_task(update_tradetrend())
     return True
 
 
@@ -638,3 +638,21 @@ async def upbit_ws_price_stream(market: str):
             data = await websocket.recv()
             parsed = json.loads(data)
             yield parsed['trade_price']  # 실시간 체결가
+
+
+@app.get("/tradesetup/{uno}")
+async def get_tradesetup(request: Request, uno: int, user_session: int = Depends(require_login), db: AsyncSession = Depends(get_db)):
+    global coinlist
+    mycoins = None
+    if uno != user_session:
+        return RedirectResponse(url="/", status_code=303)
+    try:
+        mycoins = await get_current_balance(uno, db)
+        coinlist = await get_krw_tickers()
+    except Exception as e:
+        print("Init Error !!", e)
+    usern = request.session.get("user_Name")
+    setkey = request.session.get("setupKey")
+    return templates.TemplateResponse("trade/tradesetup.html",
+                                      {"request": request, "userNo": uno, "user_Name": usern, "mycoins": mycoins[0],
+                                       "coinprice": mycoins[1], "setkey": setkey, "coinlist": coinlist})
