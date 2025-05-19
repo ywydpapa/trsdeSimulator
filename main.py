@@ -272,7 +272,7 @@ async def get_trsetups(uno, db: AsyncSession = Depends(get_db)):
                 "coinName": setup[2],
                 "stepAmt": setup[3],
                 "tradeType": setup[4],
-                "amxAmt": setup[5],
+                "maxAmt": setup[5],
                 "useYN": setup[6],
             })
     except Exception as e:
@@ -721,3 +721,13 @@ async def update_setupdel(uno: int, setupno: int, user_session: int = Depends(re
     await db.commit()
     return RedirectResponse(url=f"/tradesetup/{uno}", status_code=303)
 
+@app.post("/insertsetup/{uno}/{coinn}/{setamont}")
+async def insert_setup(uno: int, coinn: str, setamont: float, user_session: int = Depends(require_login),
+                            db: AsyncSession = Depends(get_db)):
+    if uno != user_session:
+        return RedirectResponse(url="/", status_code=303)
+    query = text(f"INSERT INTO polarisSets (userNo,coinName,stepAmt,maxAmt) "
+                  "values (:uno, :coinn ,:setamt, :maxamt)")
+    await db.execute(query, {"uno": uno, "coinn": coinn, "setamt": setamont, "maxamt": setamont})
+    await db.commit()
+    return RedirectResponse(url=f"/tradesetup/{uno}", status_code=303)

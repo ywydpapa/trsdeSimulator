@@ -41,7 +41,9 @@
                                     <td style="text-align: right" id="selcprice">
                                     </td>
                                     <td>
-                                        <button class="form-control btn btn-primary" onclick="sellcryptoRun()">설정추가
+                                        <button class="form-control btn btn-primary"
+                                                id="addSetupBtn"
+                                                onclick="insertsetup()">설정추가
                                         </button>
                                     </td>
                                 </tr>
@@ -102,10 +104,10 @@
                                 {% if setups %}
                                 {% for setup in setups %}
                                 <tr>
-                                    <td style="text-align: center">{{ setup.coinName }}</td>
-                                    <td style="text-align: right">{{ setup.stepAmt }}</td>
+                                    <td style="text-align: center" class="setup-coin-item">{{ setup.coinName }}</td>
+                                    <td style="text-align: right">{{ "{:,.0f}".format(setup.stepAmt) }}</td>
                                     <td style="text-align: center">{{ setup.tradeType }}</td>
-                                    <td style="text-align: right">{{ setup.maxAmt }}</td>
+                                    <td style="text-align: right">{{ "{:,.0f}".format(setup.maxAmt) }}</td>
                                     <td style="text-align: center">
                                         <input type="checkbox"
                                                name="useYN"
@@ -166,11 +168,12 @@
 
     $(document).ready(function () {
         setinit();
-        $("input[type=checkbox][name=useYN]").each(function() {
-        const setupNo = $(this).attr("id").replace("useYN", "");
-        const btn = document.getElementById('removeBtn' + setupNo);
-        if (btn) btn.disabled = this.checked;
-    });
+        $("input[type=checkbox][name=useYN]").each(function () {
+            const setupNo = $(this).attr("id").replace("useYN", "");
+            const btn = document.getElementById('removeBtn' + setupNo);
+            if (btn) btn.disabled = this.checked;
+        });
+        $('#coinn').trigger('change');
     });
 
 
@@ -203,7 +206,6 @@
     }
 
     async function removeSetup(setupNo, uno) {
-        // 서버로 POST 요청 보내기
         try {
             const response = await fetch(`/setupdel/${setupNo}/${uno}`, {
                 method: 'POST',
@@ -212,8 +214,6 @@
                     'Content-Type': 'application/json'
                 }
             });
-            // 서버가 303 리다이렉트 응답을 보낼 경우 fetch는 자동으로 따라가지 않습니다.
-            // 따라서 프론트엔드에서 직접 이동시켜줘야 함
             if (response.redirected) {
                 window.location.href = response.url;
             } else if (response.status === 303) {
@@ -238,6 +238,22 @@
 
 
     $('#coinn').change(function () {
+        var selectedMarket = $(this).val();
+        var isDuplicate = false;
+
+        // 1. 리스트 테이블의 코인명만 비교 (앞서 안내한 대로)
+        $('.setup-coin-item').each(function () {
+            if ($(this).text().trim() === selectedMarket) {
+                isDuplicate = true;
+                return false;
+            }
+        });
+        if (!selectedMarket || isDuplicate) {
+            $('#addSetupBtn').prop('disabled', true);
+        } else {
+            $('#addSetupBtn').prop('disabled', false);
+        }
+
         var market = $(this).val();
         if (market) {
             var upbitApi = $.getJSON('https://api.upbit.com/v1/ticker?markets=' + market);
@@ -287,22 +303,12 @@
     });
 
 
-    function setinit() {
-    }
-
     function numberWithCommas(x) {
         return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
 
     function numberNoneCommas(x) {
         return x.toString().replace(/[\D\s\._\-]+/g, "");
-    }
-
-    function limitBamount(input) {
-        input.value = input.value.replace(/[^0-9.]/g, '');
-        var max = parseFloat(document.getElementById('buyable_amount').value, 10) || 0;
-        var val = parseFloat(input.value, 10) || 0;
-        if (val > max) input.value = max;
     }
 
     function limitBprice(input) {
@@ -322,6 +328,50 @@
         if (val > max) val = max;
         if (val < min) val = min;
         input.value = numberWithCommas(val);
+    }
+
+    async function insertsetup() {
+        // 입력값 가져오기
+        const uno = $('#userNo').val();
+        const coinn = $('#coinn').val();
+        // 설정금액(콤마 제거 후 숫자로 변환)
+        let setamontRaw = $('#setupamt').val().replace(/,/g, '');
+        const setamont = parseFloat(setamontRaw);
+
+        // 값 검증
+        if (!coinn) {
+            alert('코인을 선택하세요.');
+            return;
+        }
+        if (isNaN(setamont) || setamont < 5000) {
+            alert('설정금액을 5,000원 이상 입력하세요.');
+            return;
+        }
+        try {
+            const response = await fetch(`/insertsetup/${uno}/${coinn}/${setamont}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (response.redirected) {
+                window.location.href = response.url;
+            } else if (response.status === 303) {
+                const redirectUrl = response.headers.get('Location');
+                if (redirectUrl) {
+                    window.location.href = redirectUrl;
+                } else {
+                    window.location.reload();
+                }
+            } else if (response.ok) {
+                window.location.reload();
+            } else {
+                alert('설정 추가에 실패했습니다.');
+            }
+        } catch (error) {
+            alert('오류가 발생했습니다.');
+            console.error(error);
+        }
     }
 
 </script>
