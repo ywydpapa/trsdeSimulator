@@ -114,7 +114,7 @@
                                                id="useYN{{ setup.setupNo }}"
                                                value="Y"
                                                {% if setup.useYN== 'Y' %}checked{% endif %}
-                                        onchange="changeYN({{ setup.setupNo }}, this.checked)">
+                                        onchange="schangeYN({{ setup.setupNo }}, this.checked)">
                                     </td>
                                     <td style="text-align: center">
                                         <button class="form-control btn btn-primary"
@@ -167,7 +167,6 @@
     });
 
     $(document).ready(function () {
-        setinit();
         $("input[type=checkbox][name=useYN]").each(function () {
             const setupNo = $(this).attr("id").replace("useYN", "");
             const btn = document.getElementById('removeBtn' + setupNo);
@@ -181,13 +180,10 @@
         $('#buyable_amount').val(amount);
     }
 
-    async function changeYN(setupNo, isChecked) {
+    async function schangeYN(setupNo, isChecked) {
         const useYN = isChecked ? 'Y' : 'N';
-
-        // 버튼 활성/비활성 처리
         const btn = document.getElementById('removeBtn' + setupNo);
-        if (btn) btn.disabled = isChecked; // 체크되어 있으면 비활성화
-
+        if (btn) btn.disabled = isChecked;
         try {
             const response = await fetch(`/setuponoff/${setupNo}/${useYN}/{{ userNo }}`, {
                 method: 'POST',
@@ -195,7 +191,6 @@
                     'Content-Type': 'application/json'
                 },
             });
-
             if (!response.ok) {
                 alert('상태 변경에 실패했습니다.');
             }
@@ -210,19 +205,16 @@
             const response = await fetch(`/setupdel/${setupNo}/${uno}`, {
                 method: 'POST',
                 headers: {
-                    // 필요하다면 CSRF 토큰 등 추가
                     'Content-Type': 'application/json'
                 }
             });
             if (response.redirected) {
                 window.location.href = response.url;
             } else if (response.status === 303) {
-                // 일부 브라우저에서는 redirected가 false일 수 있으므로 fallback
                 const redirectUrl = response.headers.get('Location');
                 if (redirectUrl) {
                     window.location.href = redirectUrl;
                 } else {
-                    // 성공 후 현재 페이지 새로고침 (혹은 필요에 따라 동작)
                     window.location.reload();
                 }
             } else if (response.ok) {
@@ -240,8 +232,6 @@
     $('#coinn').change(function () {
         var selectedMarket = $(this).val();
         var isDuplicate = false;
-
-        // 1. 리스트 테이블의 코인명만 비교 (앞서 안내한 대로)
         $('.setup-coin-item').each(function () {
             if ($(this).text().trim() === selectedMarket) {
                 isDuplicate = true;
@@ -320,7 +310,6 @@
     }
 
     function formatBpriceOnBlur(input) {
-// 포커스 아웃 시: 최소값, 최대값 적용 + 콤마 적용
         let raw = input.value.replace(/[^0-9]/g, '');
         let max = numberNoneCommas($("#krwbalance").text());
         let min = 5000;
@@ -331,14 +320,10 @@
     }
 
     async function insertsetup() {
-        // 입력값 가져오기
         const uno = $('#userNo').val();
         const coinn = $('#coinn').val();
-        // 설정금액(콤마 제거 후 숫자로 변환)
         let setamontRaw = $('#setupamt').val().replace(/,/g, '');
         const setamont = parseFloat(setamontRaw);
-
-        // 값 검증
         if (!coinn) {
             alert('코인을 선택하세요.');
             return;
@@ -373,6 +358,15 @@
             console.error(error);
         }
     }
+
+    window.onload = function () {
+        $("input[type=checkbox][name=useYN]").each(function () {
+            const setupNo = $(this).attr("id").replace("useYN", "");
+            const btn = document.getElementById('removeBtn' + setupNo);
+            if (btn) btn.disabled = this.checked;
+        });
+        $('#coinn').trigger('change');
+    };
 
 </script>
 </html>
